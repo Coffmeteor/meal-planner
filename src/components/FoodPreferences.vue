@@ -141,6 +141,18 @@ function toggleFood(id) {
   }
 }
 
+function selectAllFoods() {
+  const allIds = DEFAULT_FOODS.map((f) => f.id)
+  localPrefs.selectedFoodIds = [...new Set([...localPrefs.selectedFoodIds, ...allIds])]
+}
+
+function clearAllFoods() {
+  const defaultIds = new Set(DEFAULT_FOODS.map((f) => f.id))
+  localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter(
+    (id) => !defaultIds.has(id),
+  )
+}
+
 function categoryAverages(category) {
   const foods = DEFAULT_FOODS.filter((food) => food.category === category)
   const totals = foods.reduce(
@@ -278,6 +290,11 @@ function skipAll() {
     <label class="food-search">
       <input v-model="searchQuery" class="food-search-input" type="search" placeholder="搜索食材" />
     </label>
+
+    <div class="food-batch-tools">
+      <button type="button" class="food-batch-btn" @click="selectAllFoods">全选</button>
+      <button type="button" class="food-batch-btn" @click="clearAllFoods">取消全选</button>
+    </div>
 
     <div class="food-tabs" aria-label="食材分类">
       <button

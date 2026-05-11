@@ -718,12 +718,12 @@ function calibrateDayMeals(meals, deviation, dailyTargetCalories, foodPool, dayI
     .filter(({ meal }) => !meal.locked && !meal.edited)
   if (!adjustable.length) return meals
 
-  const adjTotal = adjustable.reduce((s, { meal }) => s + meal.calories, 0)
-  if (adjTotal <= 0) return meals
+  const lockedCals = meals.reduce((s, m) => s + (m.locked || m.edited ? m.calories : 0), 0)
+  const adjCals = adjustable.reduce((s, { meal }) => s + meal.calories, 0)
+  if (adjCals <= 0) return meals
 
-  const targetTotal = Math.max(1, dailyTargetCalories)
-  const currentTotal = meals.reduce((s, m) => s + m.calories, 0)
-  const ratio = targetTotal / currentTotal
+  const needed = Math.max(50, dailyTargetCalories - lockedCals)
+  const ratio = Math.min(2.5, Math.max(0.5, needed / adjCals))
 
   const newMeals = meals.map((meal) => {
     if (meal.locked || meal.edited) return meal
@@ -741,7 +741,6 @@ function calibrateDayMeals(meals, deviation, dailyTargetCalories, foodPool, dayI
       carbs: totals.carbs,
       fat: totals.fat,
       portion: scaledFoods.map((f) => `${f.name}${f.portion}${f.unit}`).join(' + '),
-      warning: Math.abs(totals.calories - meal.calories) > 50 ? 'adjusted' : undefined,
     }
   })
 

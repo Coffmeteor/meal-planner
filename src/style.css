@@ -543,6 +543,24 @@ button:focus-visible {
   color: rgba(129, 120, 103, 0.72);
 }
 
+.food-batch-tools {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.2rem 0.15rem 0.4rem;
+}
+.food-batch-btn {
+  flex: 1;
+  padding: 0.35rem 0;
+  border: 1px solid #8ab87a;
+  border-radius: 999rem;
+  font-size: 0.78rem;
+  color: #3a7a2a;
+  background: transparent;
+}
+.food-batch-btn:active {
+  background: #dcecd5;
+}
+
 .food-search-groups,
 .food-category-group {
   display: grid;
