@@ -1,7 +1,12 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { deleteWeightLog, saveWeightLog } from '../storage/index.js'
-import { analyzeWeightTrend, generateAdvice, getTargetCurve } from '../utils/progress.js'
+import {
+  analyzeWeightTrend,
+  buildWeightChartData,
+  generateAdvice,
+  getTargetCurve,
+} from '../utils/progress.js'
 
 const props = defineProps({
   weightLogs: {
@@ -15,6 +20,10 @@ const props = defineProps({
   planDays: {
     type: Number,
     default: 7,
+  },
+  startDate: {
+    type: String,
+    default: null,
   },
 })
 
@@ -37,6 +46,12 @@ const latestLog = computed(() => sortedLogs.value[0] || null)
 const trendInfo = computed(() => analyzeWeightTrend(props.weightLogs))
 const advice = computed(() => generateAdvice(props.weightLogs, props.profile))
 const targetCurve = computed(() => getTargetCurve(props.profile, props.planDays))
+const chartData = computed(() => buildWeightChartData(
+  props.weightLogs,
+  props.profile,
+  props.planDays,
+  props.startDate,
+))
 const currentWeight = computed(() => {
   const weight = Number(latestLog.value?.weight)
   return Number.isFinite(weight) && weight > 0 ? weight : null
@@ -67,6 +82,16 @@ const trendText = computed(() => {
   }
   return labels[trendInfo.value.trend] || '待积累'
 })
+const actualPolyline = computed(() =>
+  chartData.value.actualPoints.map((point) => `${toX(point.date)},${toY(point.weight)}`).join(' '),
+)
+const maPolyline = computed(() =>
+  chartData.value.movingAvgPoints.map((point) => `${toX(point.date)},${toY(point.weight)}`).join(' '),
+)
+const targetPolyline = computed(() =>
+  chartData.value.targetPoints.map((point) => `${toX(point.date)},${toY(point.weight)}`).join(' '),
+)
+const gridLines = computed(() => [0, 1, 2].map((index) => 140 - (index / 2) * 120))
 
 function todayYmd() {
   const date = new Date()
@@ -83,6 +108,31 @@ function formatKg(value) {
 
 function scoreText(value) {
   return value == null ? '未填' : `${value}/5`
+}
+
+function toTimestamp(dateStr) {
+  const [year, month, day] = String(dateStr).split('-').map(Number)
+  if (!year || !month || !day) return 0
+  return new Date(year, month - 1, day).getTime()
+}
+
+function toX(dateStr) {
+  const dates = chartData.value.dates
+  if (!dates.length) return 0
+
+  const first = toTimestamp(dates[0])
+  const last = toTimestamp(dates[dates.length - 1])
+  const current = toTimestamp(dateStr)
+  if (!first || !last || !current) return 20
+  if (last === first) return 160
+
+  return 20 + ((current - first) / (last - first)) * 280
+}
+
+function toY(weight) {
+  const { minY, maxY } = chartData.value
+  const range = maxY - minY || 1
+  return 140 - ((weight - minY) / range) * 120
 }
 
 function setScore(field, value) {
@@ -198,6 +248,66 @@ async function handleDelete(log) {
       <p>{{ advice }}</p>
     </div>
 
+    <div v-if="chartData.actualPoints.length >= 2" class="chart-panel">
+      <div class="chart-head">
+        <span>体重趋势</span>
+      </div>
+      <svg class="weight-chart" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet">
+        <line
+          v-for="(y, index) in gridLines"
+          :key="index"
+          :x1="0"
+          :y1="y"
+          :x2="320"
+          :y2="y"
+          stroke="#edf0ec"
+          stroke-dasharray="3,3"
+          stroke-width="1"
+        />
+        <polyline
+          v-if="chartData.targetPoints.length"
+          :points="targetPolyline"
+          fill="none"
+          stroke="#bbb"
+          stroke-width="1.5"
+          stroke-dasharray="5,4"
+        />
+        <polyline
+          v-if="chartData.movingAvgPoints.length"
+          :points="maPolyline"
+          fill="none"
+          stroke="#5ba66f"
+          stroke-width="2"
+        />
+        <polyline
+          :points="actualPolyline"
+          fill="none"
+          stroke="#35754b"
+          stroke-width="2"
+        />
+        <circle
+          v-for="(point, index) in chartData.actualPoints"
+          :key="index"
+          :cx="toX(point.date)"
+          :cy="toY(point.weight)"
+          r="3"
+          fill="#35754b"
+        />
+      </svg>
+      <div class="chart-legend">
+        <span class="legend-item"><i class="dot actual"></i>实际体重</span>
+        <span v-if="chartData.movingAvgPoints.length" class="legend-item">
+          <i class="line avg"></i>7 日均重
+        </span>
+        <span v-if="chartData.targetPoints.length" class="legend-item">
+          <i class="line target"></i>目标曲线
+        </span>
+      </div>
+    </div>
+    <div v-else class="chart-panel chart-empty">
+      <p>继续记录几天后生成趋势图</p>
+    </div>
+
     <form class="log-form" @submit.prevent="handleSave">
       <div class="form-grid">
         <label>
@@ -281,8 +391,12 @@ async function handleDelete(log) {
 <style scoped>
 .weight-progress {
   display: flex;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
   flex-direction: column;
   gap: 1rem;
+  padding: 0 0.5rem;
 }
 
 .progress-title {
@@ -305,6 +419,7 @@ async function handleDelete(log) {
 
 .summary-panel,
 .advice-panel,
+.chart-panel,
 .log-form,
 .recent-panel {
   border-radius: 0.8rem;
@@ -367,6 +482,71 @@ async function handleDelete(log) {
   color: #2f3a32;
   font-size: 0.9rem;
   line-height: 1.55;
+}
+
+.chart-panel {
+  padding: 1rem;
+}
+
+.chart-panel.chart-empty p {
+  margin: 0;
+  padding: 2rem 0;
+  color: #7a847d;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.chart-head {
+  margin-bottom: 0.75rem;
+}
+
+.chart-head span {
+  color: #68736b;
+  font-size: 0.78rem;
+}
+
+.weight-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #4f5f53;
+  font-size: 0.75rem;
+}
+
+.legend-item .dot.actual {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #35754b;
+}
+
+.legend-item .line.avg {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: #5ba66f;
+}
+
+.legend-item .line.target {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 2px dashed #bbb;
 }
 
 .log-form {
@@ -519,6 +699,36 @@ button:disabled {
 
   .delete-action {
     align-self: flex-start;
+  }
+}
+
+@media (max-width: 400px) {
+  .weight-progress {
+    padding: 0 0.25rem;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-buttons button {
+    min-height: 2rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .metric-item strong {
+    font-size: 0.9rem;
   }
 }
 </style>

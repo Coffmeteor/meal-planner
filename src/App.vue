@@ -542,6 +542,7 @@ function handleFoodsClose() {
         :weight-logs="weightLogs"
         :profile="params"
         :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
+        :start-date="planMeta?.startDate || null"
         @save="handleWeightLogsSave"
         @close="view = 'plan'"
       />

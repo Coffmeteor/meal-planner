@@ -115,3 +115,100 @@ export function getTargetCurve(profile, days) {
     weeklyRate: Math.round(((startWeight - targetWeight) / Math.max(planDays / 7, 1)) * 10) / 10,
   }
 }
+
+/**
+ * Calculate moving average weight points from valid logs.
+ */
+export function calculateMovingAverage(logs, windowDays = 7) {
+  const sorted = logs
+    .filter((log) => log.weight != null && Number(log.weight) > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return sorted.map((log, index) => {
+    const window = sorted.slice(Math.max(0, index - windowDays + 1), index + 1)
+    const avg = window.reduce((sum, entry) => sum + Number(entry.weight), 0) / window.length
+
+    return {
+      date: log.date,
+      weight: Math.round(avg * 10) / 10,
+    }
+  })
+}
+
+/**
+ * Build SVG chart data for actual, moving-average, and target weight curves.
+ */
+export function buildWeightChartData(weightLogs, profile, planDays, startDate) {
+  const valid = weightLogs.filter((log) => log.weight != null && Number(log.weight) > 0)
+  if (valid.length < 2) {
+    return {
+      actualPoints: [],
+      movingAvgPoints: [],
+      targetPoints: [],
+      minY: 0,
+      maxY: 0,
+      dates: [],
+    }
+  }
+
+  const sorted = [...valid].sort((a, b) => a.date.localeCompare(b.date))
+  const actualPoints = sorted.map((log) => ({
+    date: log.date,
+    weight: Number(log.weight),
+  }))
+
+  const movingAvgPoints = valid.length >= 3 ? calculateMovingAverage(valid, 7) : []
+
+  const startWeight = Number(profile?.weight) || Number(sorted[0].weight)
+  const targetWeight = Number(profile?.targetWeight) || startWeight
+  const totalDays = Number(planDays) || 30
+  const dailyRate = (startWeight - targetWeight) / Math.max(totalDays, 1)
+  const firstDate = startDate || sorted[0].date
+  const lastDate = sorted[sorted.length - 1].date
+  const firstDt = parseYmd(firstDate)
+  const lastDt = parseYmd(lastDate)
+  const targetPoints = []
+
+  if (firstDt && lastDt && firstDt <= lastDt) {
+    for (let date = new Date(firstDt); date <= lastDt; date.setDate(date.getDate() + 1)) {
+      const dayOffset = Math.round((date - firstDt) / 86400000)
+      const target = startWeight - dailyRate * dayOffset
+      targetPoints.push({
+        date: formatYmd(date),
+        weight: Math.round(target * 10) / 10,
+      })
+    }
+  }
+
+  const allWeights = [
+    ...actualPoints.map((point) => point.weight),
+    ...movingAvgPoints.map((point) => point.weight),
+    ...targetPoints.map((point) => point.weight),
+  ]
+  const minW = Math.floor(Math.min(...allWeights) - 0.5)
+  const maxW = Math.ceil(Math.max(...allWeights) + 0.5)
+  const minY = Math.max(0, minW)
+  const maxY = Math.max(maxW, minY + 1)
+  const chartStart = targetPoints[0]?.date && targetPoints[0].date < actualPoints[0].date
+    ? targetPoints[0].date
+    : actualPoints[0].date
+  const dates = [chartStart, actualPoints[actualPoints.length - 1].date]
+
+  return { actualPoints, movingAvgPoints, targetPoints, minY, maxY, dates }
+}
+
+function parseYmd(value) {
+  if (!value) return null
+  const [year, month, day] = String(value).split('-').map(Number)
+  if (!year || !month || !day) return null
+
+  const date = new Date(year, month - 1, day)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatYmd(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}

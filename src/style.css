@@ -57,8 +57,10 @@ button:disabled {
 
 .app-shell {
   width: min(100vw, 30rem);
+  max-width: 100%;
   min-height: 100svh;
   margin: 0 auto;
+  overflow-x: hidden;
   padding: 1rem 1rem 1.25rem;
 }
 
@@ -130,6 +132,8 @@ button:disabled {
 
 .result-stack {
   gap: 1rem;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .plan-view {
