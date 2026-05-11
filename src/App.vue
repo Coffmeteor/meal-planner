@@ -766,7 +766,7 @@ function setActiveTab(tab) {
     <template v-else-if="isAppShell">
       <section class="app-content tab-content">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
-        <MealEditor
+        <DayFoodEditor
           v-if="activeTab === 'plan' && editingDayFood !== null && dayFoodEditorDay"
           key="day-food-editor"
           :day="dayFoodEditorDay"
