@@ -153,20 +153,20 @@ const dayFoodEditorFoods = computed(() => {
 
 onMounted(loadAppState)
 
+let _scrollPending = false
 function scrollToPageTop() {
-  window.scrollTo({ top: 0, behavior: 'auto' })
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
-
-  const content = document.querySelector('.app-content')
-  if (content) content.scrollTop = 0
-}
-
-function queueScrollToPageTop() {
+  if (_scrollPending) return
+  _scrollPending = true
   nextTick(() => {
-    requestAnimationFrame(scrollToPageTop)
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+      _scrollPending = false
+    })
   })
 }
+
+watch(view, () => scrollToPageTop())
+watch(activeTab, () => scrollToPageTop())
 
 async function loadAppState() {
   try {
