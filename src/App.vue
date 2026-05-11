@@ -53,6 +53,7 @@ onMounted(async () => {
   try {
     const appState = await getAppState()
     const lp = appState.latestPlan
+    const rawLatestPlan = readLatestPlanFromLocalStorage()
     params.value = lp?.paramsSnapshot || appState.profile || null
     schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     plan.value = lp?.plan || []
@@ -62,6 +63,12 @@ onMounted(async () => {
           generatedAt: lp?.generatedAt ?? null,
           scheduleSnapshot: lp?.scheduleSnapshot ?? null,
           paramsSnapshot: lp?.paramsSnapshot ?? null,
+          days: rawLatestPlan?.days ?? lp?.days ?? plan.value.length,
+          dietMethod: rawLatestPlan?.dietMethod ?? lp?.dietMethod ?? null,
+          deficitPercent: rawLatestPlan?.deficitPercent ?? lp?.deficitPercent ?? null,
+          targetCalories: rawLatestPlan?.targetCalories ?? lp?.targetCalories ?? null,
+          macros: rawLatestPlan?.macros ?? lp?.macros ?? null,
+          recommendationReason: rawLatestPlan?.recommendationReason ?? lp?.recommendationReason ?? null,
         }
       : null
 
@@ -76,6 +83,15 @@ onMounted(async () => {
 
 function lsSave(key, value) {
   try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)) } catch (e) { /* */ }
+}
+
+function readLatestPlanFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + 'latestPlan')
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    return null
+  }
 }
 
 function lsRemove(key) {
@@ -121,11 +137,20 @@ async function bgSaveProfileAndSchedule(profileData, scheduleData) {
 
 // ── Plan metadata helper ─────────────────────────────────────────────
 
-function setPlanMeta(planArr) {
+function setPlanMeta(planArr, recommendationFields = {}) {
   const now = new Date()
   planMeta.value = {
     generatedAt: now.toISOString(),
     startDate: planArr[0]?.date ?? now.toISOString().slice(0, 10),
+    days: recommendationFields.days ?? params.value?.days ?? planArr.length,
+    dietMethod: recommendationFields.dietMethod ?? params.value?.dietMethod ?? null,
+    deficitPercent: recommendationFields.deficitPercent ?? params.value?.deficitPercent ?? null,
+    targetCalories: recommendationFields.targetCalories ?? params.value?.targetCalories ?? null,
+    macros: recommendationFields.macros ?? params.value?.macroTargets ?? null,
+    recommendationReason:
+      recommendationFields.recommendationReason
+      ?? params.value?.recommendationReason
+      ?? null,
   }
 }
 
@@ -171,6 +196,7 @@ function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: a
       fat: macros.fat,
       carbs: macros.carbs,
     },
+    recommendationReason: recommendation.value?.dietSuggestion?.reason ?? null,
   }
 
   params.value = enrichedParams
@@ -237,7 +263,14 @@ async function handleRegeneratePlan() {
   params.value = prof
   schedule.value = sched
   plan.value = generateMealPlan(prof, sched)
-  setPlanMeta(plan.value)
+  const recFields = {
+    dietMethod: prof.dietMethod ?? planMeta.value?.dietMethod ?? null,
+    deficitPercent: prof.deficitPercent ?? planMeta.value?.deficitPercent ?? null,
+    targetCalories: prof.targetCalories ?? planMeta.value?.targetCalories ?? null,
+    macros: prof.macroTargets ?? planMeta.value?.macros ?? null,
+    recommendationReason: prof.recommendationReason ?? planMeta.value?.recommendationReason ?? null,
+  }
+  setPlanMeta(plan.value, recFields)
 
   lsSave('latestPlan', {
     plan: plan.value,
@@ -316,6 +349,7 @@ async function handleClearData() {
         <PlanCalendar
           :plan="plan"
           :start-date="planMeta?.startDate"
+          :plan-meta="planMeta"
           @edit-profile="handleEditProfile"
           @regenerate="handleRegeneratePlan"
           @clear-data="handleClearData"

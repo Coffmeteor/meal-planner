@@ -11,6 +11,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  planMeta: {
+    type: Object,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['editProfile', 'regenerate', 'clearData'])
@@ -19,6 +23,45 @@ const selectedIndex = ref(0)
 
 const selectedDay = computed(() => props.plan[selectedIndex.value] || props.plan[0])
 const dayTotals = computed(() => selectedDay.value?.totals || {})
+const dietMethodLabels = {
+  threeMeals: '正常三餐',
+  threeMealsPlusSnack: '三餐+加餐',
+  '14:10': '14:10',
+  '16:8': '16:8',
+}
+const summaryMeta = computed(() => {
+  if (!props.planMeta) return null
+  const hasRecommendationMeta = Boolean(
+    props.planMeta.dietMethod
+      || props.planMeta.dietMethodLabel
+      || props.planMeta.targetCalories
+      || props.planMeta.deficitPercent
+      || props.planMeta.macros,
+  )
+  if (!hasRecommendationMeta) return null
+
+  return {
+    ...props.planMeta,
+    dietMethodLabel: props.planMeta.dietMethodLabel
+      || dietMethodLabels[props.planMeta.dietMethod]
+      || null,
+    totalDays: props.planMeta.totalDays || props.planMeta.days || props.plan.length || null,
+  }
+})
+const currentDayIndex = computed(() => {
+  const startDate = summaryMeta.value?.startDate
+  const totalDays = Number(summaryMeta.value?.totalDays)
+  if (!startDate || !totalDays) return null
+
+  const start = parsePlanDate(startDate)
+  if (Number.isNaN(start.getTime())) return null
+
+  start.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.floor((today - start) / (1000 * 60 * 60 * 24))
+  return Math.min(totalDays, Math.max(1, diffDays + 1))
+})
 const macroStyle = computed(() => {
   const proteinCalories = (dayTotals.value.protein || 0) * 4
   const carbsCalories = (dayTotals.value.carbs || 0) * 4
@@ -74,6 +117,32 @@ function parsePlanDate(dateValue) {
 
 <template>
   <section class="plan-view">
+    <div v-if="summaryMeta" class="plan-summary">
+      <div v-if="summaryMeta.dietMethodLabel" class="summary-row">
+        <span>进食方案</span>
+        <strong>{{ summaryMeta.dietMethodLabel }}</strong>
+      </div>
+      <div v-if="summaryMeta.targetCalories" class="summary-row">
+        <span>每日目标</span>
+        <strong>{{ summaryMeta.targetCalories }} kcal</strong>
+      </div>
+      <div v-if="summaryMeta.deficitPercent" class="summary-row">
+        <span>热量缺口</span>
+        <strong>{{ Math.round(summaryMeta.deficitPercent * 100) }}%</strong>
+      </div>
+      <div v-if="summaryMeta.macros" class="summary-row macro-summary">
+        <span>
+          蛋白 {{ summaryMeta.macros.protein }}g ·
+          脂肪 {{ summaryMeta.macros.fat }}g ·
+          碳水 {{ summaryMeta.macros.carbs }}g
+        </span>
+      </div>
+      <div v-if="summaryMeta.startDate && summaryMeta.totalDays && currentDayIndex" class="summary-row">
+        <span>计划日期</span>
+        <strong>{{ summaryMeta.startDate }} · 第{{ currentDayIndex }}/{{ summaryMeta.totalDays }}天</strong>
+      </div>
+    </div>
+
     <div class="day-scroll" aria-label="日期选择">
       <button
         v-for="(day, index) in plan"
@@ -132,3 +201,43 @@ function parsePlanDate(dateValue) {
     </button>
   </section>
 </template>
+
+<style scoped>
+.plan-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.75rem;
+  background: #f5f6f4;
+  color: #2f3a32;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.summary-row span {
+  color: #68736b;
+}
+
+.summary-row strong {
+  flex: 0 0 auto;
+  color: #223026;
+  font-weight: 800;
+}
+
+.macro-summary {
+  justify-content: flex-start;
+  font-size: 0.75rem;
+}
+
+.macro-summary span {
+  color: #7a847d;
+}
+</style>

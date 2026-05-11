@@ -109,7 +109,7 @@ export function calculateDeficitPercent(profile) {
   return {
     recommended: 0.15,
     options: [0.1, 0.15, 0.2],
-    warning: '20% 热量缺口较大，建议短期使用，并关注疲劳、饥饿和训练状态。',
+    warning: '偏激进，建议短周期观察执行状态',
   }
 }
 
@@ -136,7 +136,7 @@ export function calculateMacrosV2(params, calories, deficitPercent) {
       protein,
       fat,
       carbs: 0,
-      warning: '目标热量过低，建议降低热量缺口或提高目标热量',
+      warning: '已接近安全下限，建议优先保证蛋白和作息',
       deficitPercent,
     }
   }
