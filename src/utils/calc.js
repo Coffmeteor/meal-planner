@@ -171,3 +171,5 @@ export function deriveTimeAfterWake(wakeTime, hoursAfter) {
 export function deriveTimeBeforeSleep(sleepTime, hoursBefore) {
   return formatMinutes(parseTimeToMinutes(sleepTime) - Number(hoursBefore) * 60)
 }
+
+export { deriveEatingWindow } from './scheduleUtils.js'

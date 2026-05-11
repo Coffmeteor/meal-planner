@@ -7,6 +7,7 @@ import {
 } from '../utils/calc.js'
 import { formatCalories, formatMacro } from '../utils/helpers.js'
 import { generateScheduleFromProfile } from '../utils/planGenerator.js'
+import { normalizeDietMethod, normalizeEatingWindow } from '../utils/scheduleUtils.js'
 
 const props = defineProps({
   profile: {
@@ -34,27 +35,43 @@ const props = defineProps({
 const emit = defineEmits(['accept'])
 
 const methodOptions = [
-  { value: 'threeMeals', label: '正常三餐' },
-  { value: 'threeMealsPlusSnack', label: '三餐+加餐' },
-  { value: '14:10', label: '14:10' },
-  { value: '16:8', label: '16:8' },
+  {
+    value: 'threeMeals',
+    label: '正常三餐',
+    description: '保留早餐、午餐、晚餐，适合规律作息和稳定执行。',
+  },
+  {
+    value: 'threeMealsPlusSnack',
+    label: '三餐+加餐',
+    description: '三餐之外增加一次轻加餐，方便分配蛋白和训练补给。',
+  },
+  {
+    value: '14:10',
+    label: '14:10 进食窗口',
+    description: '每天约 10 小时进食、14 小时空腹，适合早餐不固定的人。',
+  },
+  {
+    value: '16:8',
+    label: '16:8 进食窗口',
+    description: '每天约 8 小时进食、16 小时空腹，窗口更集中。',
+  },
 ]
 
 const showMethods = ref(false)
-const selectedMethod = ref(props.dietSuggestion.method)
-const selectedDeficit = ref(props.deficitSuggestion.recommended)
+const selectedMethod = ref(normalizeDietMethod(props.profile?.dietMethod || props.dietSuggestion.method))
+const selectedDeficit = ref(props.profile?.deficitPercent || props.deficitSuggestion.recommended)
 
 watch(
-  () => props.dietSuggestion.method,
-  (method) => {
-    selectedMethod.value = method
+  () => [props.profile?.dietMethod, props.dietSuggestion.method],
+  ([profileMethod, suggestedMethod]) => {
+    selectedMethod.value = normalizeDietMethod(profileMethod || suggestedMethod)
   },
 )
 
 watch(
-  () => props.deficitSuggestion.recommended,
-  (deficit) => {
-    selectedDeficit.value = deficit
+  () => [props.profile?.deficitPercent, props.deficitSuggestion.recommended],
+  ([profileDeficit, suggestedDeficit]) => {
+    selectedDeficit.value = profileDeficit || suggestedDeficit
   },
 )
 
@@ -63,7 +80,12 @@ const targetCalories = computed(() =>
   calculateTargetCaloriesV2(tdee.value, selectedDeficit.value, props.profile.gender),
 )
 const deficitCalories = computed(() => Math.round(tdee.value - targetCalories.value))
-const schedule = computed(() => generateScheduleFromProfile(props.profile, selectedMethod.value))
+const eatingWindow = computed(() =>
+  normalizeEatingWindow(props.profile, selectedMethod.value, props.profile?.eatingWindow),
+)
+const schedule = computed(() =>
+  generateScheduleFromProfile(props.profile, selectedMethod.value, eatingWindow.value),
+)
 const macros = computed(
   () =>
     calculateMacrosV2(props.profile, targetCalories.value, selectedDeficit.value) ||
@@ -71,6 +93,9 @@ const macros = computed(
 )
 const methodLabel = computed(
   () => methodOptions.find((item) => item.value === selectedMethod.value)?.label ?? selectedMethod.value,
+)
+const methodDescription = computed(
+  () => methodOptions.find((item) => item.value === selectedMethod.value)?.description ?? '',
 )
 const deficitWarning = computed(() =>
   selectedDeficit.value === 0.2 ? props.deficitSuggestion.warning : null,
@@ -83,6 +108,7 @@ function acceptRecommendation() {
     deficitPercent: selectedDeficit.value,
     macros: macros.value,
     schedule: schedule.value,
+    eatingWindow: eatingWindow.value,
   })
 }
 </script>
@@ -95,6 +121,10 @@ function acceptRecommendation() {
         <strong>推荐方案：{{ methodLabel }}</strong>
       </div>
       <p>{{ dietSuggestion.reason }}</p>
+      <div class="method-summary">
+        <strong>{{ methodLabel }}</strong>
+        <span>{{ methodDescription }}</span>
+      </div>
       <button type="button" class="ghost-action compact-action" @click="showMethods = !showMethods">
         切换方案
       </button>
@@ -106,7 +136,8 @@ function acceptRecommendation() {
           :class="{ active: selectedMethod === item.value }"
           @click="selectedMethod = item.value"
         >
-          {{ item.label }}
+          <strong>{{ item.label }}</strong>
+          <small>{{ item.description }}</small>
         </button>
       </div>
     </article>

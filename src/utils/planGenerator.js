@@ -7,6 +7,12 @@ import {
 import { foods } from './foods.js'
 import { MEAL_TEMPLATES } from './mealTemplates.js'
 import { normalizeMealDisplay } from './mealDisplay.js'
+import {
+  autoDistributeMeals,
+  normalizeDietMethod,
+  normalizeEatingWindow,
+  validateScheduleTimes,
+} from './scheduleUtils.js'
 
 const mealNameMap = {
   2: ['午餐', '晚餐'],
@@ -47,9 +53,15 @@ export function generateSchedule(mealCount = 4) {
   return schedules[mealCount] || schedules[4]
 }
 
-export function generateScheduleFromProfile(profile, dietMethod) {
+export function generateScheduleFromProfile(profile, dietMethod, existingEatingWindow = null) {
+  dietMethod = normalizeDietMethod(dietMethod)
   const wakeTime = profile?.wakeTime ?? '07:00'
   const sleepTime = profile?.sleepTime ?? '23:00'
+  const eatingWindow = normalizeEatingWindow(
+    profile,
+    dietMethod,
+    existingEatingWindow || profile?.eatingWindow,
+  )
 
   if (dietMethod === 'threeMealsPlusSnack') {
     return {
@@ -62,25 +74,28 @@ export function generateScheduleFromProfile(profile, dietMethod) {
         deriveTimeBeforeSleep(sleepTime, 3),
       ],
       split: [0.24, 0.36, 0.1, 0.3],
+      eatingWindow,
     }
   }
 
   if (dietMethod === '14:10') {
-    return {
+    return autoDistributeMeals({
       mealCount: 3,
       mealNames: ['午餐', '下午加餐', '晚餐'],
       times: ['12:00', '15:30', deriveTimeBeforeSleep(sleepTime, 3)],
       split: [0.45, 0.1, 0.45],
-    }
+      eatingWindow,
+    }, eatingWindow)
   }
 
   if (dietMethod === '16:8') {
-    return {
+    return autoDistributeMeals({
       mealCount: 2,
       mealNames: ['午餐', '晚餐'],
       times: ['12:30', deriveTimeBeforeSleep(sleepTime, 2.5)],
       split: [0.5, 0.5],
-    }
+      eatingWindow,
+    }, eatingWindow)
   }
 
   return {
@@ -92,6 +107,7 @@ export function generateScheduleFromProfile(profile, dietMethod) {
       deriveTimeBeforeSleep(sleepTime, 3.5),
     ],
     split: [0.3, 0.4, 0.3],
+    eatingWindow,
   }
 }
 
@@ -490,7 +506,26 @@ function addDays(date, days) {
   return next
 }
 
-export function generateMealPlan(params, schedule = {}, availableFoods = null) {
+function resolveEatingWindow(params = {}, schedule = {}, eatingWindow = null) {
+  const rawWindow = eatingWindow || schedule.eatingWindow || params.eatingWindow
+  const method =
+    rawWindow?.type && rawWindow.type !== 'none'
+      ? rawWindow.type
+      : params?.dietMethod
+  return normalizeEatingWindow(params, method, rawWindow)
+}
+
+function resolveScheduleTimes(schedule, mealCount, eatingWindow) {
+  const times = schedule.times?.length ? schedule.times : generateSchedule(mealCount)
+  if (!eatingWindow?.type || eatingWindow.type === 'none') return times
+
+  const validation = validateScheduleTimes({ ...schedule, times }, eatingWindow)
+  if (validation.valid) return times
+
+  return autoDistributeMeals({ ...schedule, times }, eatingWindow).times
+}
+
+export function generateMealPlan(params, schedule = {}, availableFoods = null, eatingWindowParam = null) {
   const generationSeed = mealPlanGenerationIndex
   mealPlanGenerationIndex += 1
   const foodPool = normalizeFoodPool(availableFoods?.length ? availableFoods : foods)
@@ -502,7 +537,8 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null) {
     macros: params.macroTargets || calculateMacros(calories),
   }
   const mealCount = Number(schedule.mealCount) || 4
-  const times = schedule.times?.length ? schedule.times : generateSchedule(mealCount)
+  const eatingWindow = resolveEatingWindow(params, schedule, eatingWindowParam)
+  const times = resolveScheduleTimes(schedule, mealCount, eatingWindow)
   const splits =
     schedule.split?.length === times.length ? schedule.split : splitMap[mealCount] || splitMap[4]
   const mealNames = schedule.mealNames?.length === times.length ? schedule.mealNames : []
@@ -553,12 +589,19 @@ export function regenerateSingleMeal(
   params,
   schedule = {},
   availableFoods = null,
+  eatingWindowParam = null,
 ) {
   const day = plan[dayIndex]
   if (!day || !day.meals?.[mealIndex]) return plan
 
   const mealCount = Number(schedule.mealCount) || day.meals.length
-  const times = schedule.times?.length ? schedule.times : day.meals.map((meal) => meal.time)
+  const eatingWindow = resolveEatingWindow(params, schedule, eatingWindowParam)
+  const fallbackTimes = day.meals.map((meal) => meal.time)
+  const times = resolveScheduleTimes(
+    { ...schedule, times: schedule.times?.length ? schedule.times : fallbackTimes },
+    mealCount,
+    eatingWindow,
+  )
   const splits =
     schedule.split?.length === times.length
       ? schedule.split
@@ -596,11 +639,18 @@ export function regenerateDay(
   availableFoods = null,
   currentDay = {},
   options = {},
+  eatingWindowParam = null,
 ) {
   if (!currentDay?.meals?.length) return currentDay
 
   const mealCount = Number(schedule.mealCount) || currentDay.meals.length
-  const times = schedule.times?.length ? schedule.times : currentDay.meals.map((meal) => meal.time)
+  const eatingWindow = resolveEatingWindow(params, schedule, eatingWindowParam)
+  const fallbackTimes = currentDay.meals.map((meal) => meal.time)
+  const times = resolveScheduleTimes(
+    { ...schedule, times: schedule.times?.length ? schedule.times : fallbackTimes },
+    mealCount,
+    eatingWindow,
+  )
   const splits =
     schedule.split?.length === times.length
       ? schedule.split
