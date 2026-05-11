@@ -30,6 +30,7 @@ const tabs = [
 ]
 const activeCategory = ref('all')
 const selectedFoodIds = ref([])
+const searchQuery = ref('')
 
 const foodPool = computed(() => {
   const byId = new Map()
@@ -50,6 +51,27 @@ const visibleFoods = computed(() =>
     ? foodPool.value
     : foodPool.value.filter((food) => food.category === activeCategory.value),
 )
+const normalizedSearch = computed(() => searchQuery.value.trim().toLowerCase())
+const isSearching = computed(() => normalizedSearch.value.length > 0)
+const searchGroups = computed(() => {
+  if (!isSearching.value) return []
+
+  const groups = new Map()
+  const foods = foodPool.value.filter((food) => foodMatchesSearch(food, normalizedSearch.value))
+  for (const food of foods) {
+    const category = food.category || 'protein'
+    if (!groups.has(category)) groups.set(category, [])
+    groups.get(category).push(food)
+  }
+
+  return FOOD_CATEGORY_OPTIONS
+    .map((option) => ({
+      value: option.value,
+      label: option.label,
+      foods: groups.get(option.value) || [],
+    }))
+    .filter((group) => group.foods.length)
+})
 const selectedCount = computed(() => selectedFoodIds.value.length)
 
 watch(
@@ -86,6 +108,22 @@ function usedFoodIds(day) {
 
 function isSelected(foodId) {
   return selectedFoodIds.value.includes(foodId)
+}
+
+function categoryLabel(food) {
+  return FOOD_CATEGORY_LABELS[food?.category] || food?.category || '其他'
+}
+
+function foodMatchesSearch(food, keyword) {
+  const category = food?.category || ''
+  const fields = [
+    food?.name,
+    category,
+    FOOD_CATEGORY_LABELS[category],
+    ...(Array.isArray(food?.tags) ? food.tags : []),
+  ]
+
+  return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
 }
 
 function toggleFood(foodId) {
@@ -146,21 +184,52 @@ function handleSave() {
       </button>
     </div>
 
-    <div class="food-grid">
-      <button
-        v-for="food in visibleFoods"
-        :key="food.id"
-        type="button"
-        class="food-card"
-        :class="{ selected: isSelected(food.id) }"
-        @click="toggleFood(food.id)"
-      >
-        <span>{{ food.name }}</span>
-        <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
-      </button>
-    </div>
+    <label class="food-search">
+      <input v-model="searchQuery" class="food-search-input" type="search" placeholder="搜索食材" />
+    </label>
 
-    <p v-if="!foodPool.length" class="empty-state">
+    <template v-if="isSearching">
+      <div v-if="searchGroups.length" class="food-search-groups">
+        <section v-for="group in searchGroups" :key="group.value" class="food-category-group">
+          <h3 class="food-category-heading">{{ group.label }}</h3>
+          <div class="food-grid">
+            <button
+              v-for="food in group.foods"
+              :key="food.id"
+              type="button"
+              class="food-card"
+              :class="{ selected: isSelected(food.id) }"
+              @click="toggleFood(food.id)"
+            >
+              <span>
+                {{ food.name }}
+                <small class="food-card-meta">{{ categoryLabel(food) }}</small>
+              </span>
+              <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+            </button>
+          </div>
+        </section>
+      </div>
+      <p v-else class="empty-state">没有找到相关食材</p>
+    </template>
+
+    <template v-else>
+      <div class="food-grid">
+        <button
+          v-for="food in visibleFoods"
+          :key="food.id"
+          type="button"
+          class="food-card"
+          :class="{ selected: isSelected(food.id) }"
+          @click="toggleFood(food.id)"
+        >
+          <span>{{ food.name }}</span>
+          <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+        </button>
+      </div>
+    </template>
+
+    <p v-if="!isSearching && !foodPool.length" class="empty-state">
       暂无可选食材。
     </p>
 

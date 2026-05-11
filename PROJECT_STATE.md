@@ -2,7 +2,13 @@
 
 ## Current Version
 
-**v0.2.3** — Patch: diet method semantics, editable eating window, editable meal times
+**v0.2.4** — Patch: recommendation back navigation, ingredient search, scroll reset
+
+## Patch (v0.2.4)
+
+- Added a recommendation-page back action that returns to the input form while preserving the current profile data.
+- Added real-time ingredient search to global food preferences and day food editing, matching name, category, and tags.
+- Added App-level scroll reset for wizard transitions, editor transitions, bottom tab switches, import, and data clear.
 
 ## Patch (v0.2.3)
 

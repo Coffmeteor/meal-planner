@@ -30,6 +30,8 @@ const form = reactive({
   exerciseFreq: 1,
   hasStrength: false,
   hasCardio: false,
+  dietMethod: null,
+  deficitPercent: null,
 })
 
 watch(
@@ -45,7 +47,7 @@ watch(
       height: initialData.height ?? form.height,
       weight: initialData.weight ?? form.weight,
       targetWeight: initialData.targetWeight ?? form.targetWeight,
-      activity: initialData.activity ?? form.activity,
+      activity: initialData.activity ?? initialData.activityLevel ?? form.activity,
       days: initialData.days ?? form.days,
       wakeTime: initialData.wakeTime ?? '07:00',
       sleepTime: initialData.sleepTime ?? '23:00',
@@ -54,6 +56,8 @@ watch(
       exerciseFreq: initialData.exerciseFreq ?? 1,
       hasStrength: initialData.hasStrength ?? false,
       hasCardio: initialData.hasCardio ?? false,
+      dietMethod: initialData.dietMethod ?? null,
+      deficitPercent: initialData.deficitPercent ?? null,
     })
   },
   { immediate: true },
@@ -74,6 +78,8 @@ function submitForm() {
     exerciseFreq: Number(form.exerciseFreq),
     hasStrength: Boolean(form.hasStrength),
     hasCardio: Boolean(form.hasCardio),
+    dietMethod: form.dietMethod,
+    deficitPercent: form.deficitPercent,
   })
 }
 </script>
