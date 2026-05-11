@@ -482,7 +482,7 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null) {
 
     return {
       day: dayIndex + 1,
-      date: date.toISOString().slice(0, 10),
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
       targets: {
         calories: dailyTargets.calories,
         ...dailyTargets.macros,

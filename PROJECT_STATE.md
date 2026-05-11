@@ -2,7 +2,14 @@
 
 ## Current Version
 
-**v0.1.0** — Commit: `611743c`
+**v0.1.1** — Bugfix: UTC date offset in plan generation (China UTC+8 before 8 AM)
+
+## Bugfix (v0.1.1)
+
+- Fix plan date offset by 1 day in China timezone (UTC+8) due to `toISOString()` using UTC.
+- `planGenerator.js`: replaced `date.toISOString().slice(0, 10)` with local-time `getFullYear/getMonth/getDate`.
+- `App.vue`: replaced `now.toISOString().slice(0, 10)` fallback with `formatDateYmd(now)`.
+- Plan dates now correctly use local time.
 
 ## Completed Rounds
 

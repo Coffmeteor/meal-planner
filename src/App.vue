@@ -208,7 +208,7 @@ function setPlanMeta(planArr, recommendationFields = {}) {
   const now = new Date()
   planMeta.value = {
     generatedAt: now.toISOString(),
-    startDate: planArr[0]?.date ?? now.toISOString().slice(0, 10),
+    startDate: planArr[0]?.date ?? formatDateYmd(now),
     days: recommendationFields.days ?? params.value?.days ?? planArr.length,
     dietMethod: recommendationFields.dietMethod ?? params.value?.dietMethod ?? null,
     deficitPercent: recommendationFields.deficitPercent ?? params.value?.deficitPercent ?? null,
