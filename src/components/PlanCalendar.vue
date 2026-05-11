@@ -17,7 +17,16 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['editProfile', 'regenerate', 'clearData', 'manageFoods', 'refreshRecipe'])
+const emit = defineEmits([
+  'editProfile',
+  'regenerate',
+  'clearData',
+  'manageFoods',
+  'refreshRecipe',
+  'lockMeal',
+  'unlockMeal',
+  'replaceMeal',
+])
 
 const selectedIndex = ref(0)
 
@@ -113,6 +122,29 @@ function parsePlanDate(dateValue) {
 
   return new Date(dateValue)
 }
+
+function toggleLock(mealIndex) {
+  const meal = selectedDay.value?.meals[mealIndex]
+  if (!meal) return
+
+  if (meal.locked) {
+    emit('unlockMeal', { dayIndex: selectedIndex.value, mealIndex })
+  } else {
+    emit('lockMeal', { dayIndex: selectedIndex.value, mealIndex })
+  }
+}
+
+function handleReplace(mealIndex) {
+  const meal = selectedDay.value?.meals[mealIndex]
+  if (!meal) return
+
+  if (meal.locked) {
+    alert('该餐已锁定，请先取消锁定再更换')
+    return
+  }
+
+  emit('replaceMeal', { dayIndex: selectedIndex.value, mealIndex })
+}
 </script>
 
 <template>
@@ -176,7 +208,12 @@ function parsePlanDate(dateValue) {
       </div>
 
       <div class="meal-list">
-        <article v-for="meal in selectedDay.meals" :key="`${meal.time}-${meal.name}`" class="meal-card">
+        <article
+          v-for="(meal, mealIndex) in selectedDay.meals"
+          :key="`${meal.time}-${meal.name}-${mealIndex}`"
+          class="meal-card"
+          :class="{ 'meal-locked': meal.locked }"
+        >
           <div class="meal-head">
             <div>
               <span>{{ formatTime(meal.time) }}</span>
@@ -187,6 +224,20 @@ function parsePlanDate(dateValue) {
           <p>{{ meal.portion }}</p>
           <p v-if="meal.simpleSteps" class="meal-steps">{{ meal.simpleSteps }}</p>
           <small>{{ formatMacros(meal) }}</small>
+          <div class="meal-actions">
+            <button type="button" class="meal-action-btn" @click="toggleLock(mealIndex)">
+              {{ meal.locked ? '🔒 已锁定' : '🔓 锁定' }}
+            </button>
+            <button
+              type="button"
+              class="meal-action-btn"
+              :class="{ disabled: meal.locked }"
+              :aria-disabled="meal.locked"
+              @click="handleReplace(mealIndex)"
+            >
+              换这一餐
+            </button>
+          </div>
         </article>
       </div>
     </div>
@@ -250,5 +301,29 @@ function parsePlanDate(dateValue) {
   color: #666;
   margin-top: 0.3rem;
   line-height: 1.4;
+}
+
+.meal-locked {
+  border-left: 3px solid var(--green, #5ba66f);
+}
+
+.meal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.meal-action-btn {
+  background: none;
+  border: none;
+  color: var(--green, #5ba66f);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.15rem 0;
+}
+
+.meal-action-btn.disabled {
+  color: #bbb;
+  cursor: not-allowed;
 }
 </style>

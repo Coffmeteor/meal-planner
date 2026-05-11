@@ -493,4 +493,52 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null) {
   })
 }
 
+/**
+ * Regenerate a single meal in an existing plan.
+ * Returns a new plan array with the replaced meal.
+ */
+export function regenerateSingleMeal(
+  plan,
+  dayIndex,
+  mealIndex,
+  params,
+  schedule = {},
+  availableFoods = null,
+) {
+  const day = plan[dayIndex]
+  if (!day || !day.meals?.[mealIndex]) return plan
+
+  const mealCount = Number(schedule.mealCount) || day.meals.length
+  const times = schedule.times?.length ? schedule.times : day.meals.map((meal) => meal.time)
+  const splits =
+    schedule.split?.length === times.length
+      ? schedule.split
+      : day.meals.map(() => 1 / Math.max(mealCount, 1))
+  const mealNames =
+    schedule.mealNames?.length === times.length
+      ? schedule.mealNames
+      : day.meals.map((meal) => meal.name)
+  const calorieTarget = (Number(params?.targetCalories) || 1500)
+    * (splits[mealIndex] || (1 / Math.max(mealCount, 1)))
+  const foodPool = normalizeFoodPool(availableFoods?.length ? availableFoods : foods)
+  const meal = createMealWithTemplate({
+    time: times[mealIndex] || day.meals[mealIndex].time,
+    index: mealIndex,
+    mealCount,
+    calorieTarget: Math.round(calorieTarget),
+    dayIndex: dayIndex + (plan.length * 999),
+    mealNames,
+    foodPool,
+    usedFoodIds: new Set(),
+    usedTemplateIds: new Set(),
+    generationSeed: mealPlanGenerationIndex++,
+  })
+
+  const newPlan = plan.map((planDay) => ({ ...planDay, meals: [...planDay.meals] }))
+  newPlan[dayIndex].meals[mealIndex] = meal
+  newPlan[dayIndex].totals = sumFoods(newPlan[dayIndex].meals)
+
+  return newPlan
+}
+
 export { splitMap }

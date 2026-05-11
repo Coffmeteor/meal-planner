@@ -28,6 +28,7 @@ import {
 import {
   generateMealPlan,
   generateScheduleFromProfile,
+  regenerateSingleMeal,
 } from './utils/planGenerator.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
@@ -148,6 +149,19 @@ async function bgSaveProfileAndSchedule(profileData, scheduleData) {
   }
 }
 
+function savePlan() {
+  if (!plan.value.length) return
+
+  const existingMeta = planMeta.value || {}
+  lsSave('latestPlan', {
+    plan: plan.value,
+    ...existingMeta,
+    scheduleSnapshot: schedule.value,
+    paramsSnapshot: params.value,
+  })
+  bgSave(params.value, schedule.value, plan.value, existingMeta)
+}
+
 // ── Plan metadata helper ─────────────────────────────────────────────
 
 function setPlanMeta(planArr, recommendationFields = {}) {
@@ -190,6 +204,18 @@ function rebasePlanDates(planArr, startDate) {
       date: formatDateYmd(date),
     }
   })
+}
+
+function calculateDayTotals(meals) {
+  return meals.reduce(
+    (sum, meal) => ({
+      calories: sum.calories + (meal.calories || 0),
+      protein: sum.protein + (meal.protein || 0),
+      carbs: sum.carbs + (meal.carbs || 0),
+      fat: sum.fat + (meal.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  )
 }
 
 function buildRecommendation(profile) {
@@ -275,12 +301,32 @@ function handleRefreshRecipe() {
     return
   }
 
+  const lockedMeals = []
+  plan.value.forEach((day, dayIndex) => {
+    day.meals.forEach((meal, mealIndex) => {
+      if (meal.locked) lockedMeals.push({ dayIndex, mealIndex, meal })
+    })
+  })
+
   const existingMeta = planMeta.value || {}
   const oldStartDate = existingMeta.startDate
-  plan.value = rebasePlanDates(
+  const nextPlan = rebasePlanDates(
     generateMealPlan(params.value, schedule.value, resolveAvailableFoods()),
     oldStartDate,
   )
+
+  const daysToRecalculate = new Set()
+  lockedMeals.forEach(({ dayIndex, mealIndex, meal }) => {
+    if (nextPlan[dayIndex]?.meals[mealIndex]) {
+      nextPlan[dayIndex].meals[mealIndex] = meal
+      daysToRecalculate.add(dayIndex)
+    }
+  })
+  daysToRecalculate.forEach((dayIndex) => {
+    nextPlan[dayIndex].totals = calculateDayTotals(nextPlan[dayIndex].meals)
+  })
+
+  plan.value = nextPlan
 
   const recFields = {
     dietMethod: existingMeta.dietMethod ?? params.value?.dietMethod ?? null,
@@ -293,15 +339,65 @@ function handleRefreshRecipe() {
       ?? null,
   }
   setPlanMeta(plan.value, recFields)
-
-  lsSave('latestPlan', {
-    plan: plan.value,
-    ...planMeta.value,
-    scheduleSnapshot: schedule.value,
-    paramsSnapshot: params.value,
-  })
-  bgSave(params.value, schedule.value, plan.value, planMeta.value)
+  savePlan()
   showToast('✅ 已刷新食谱')
+}
+
+function handleLockMeal({ dayIndex, mealIndex }) {
+  if (!plan.value[dayIndex]?.meals[mealIndex]) return
+
+  plan.value = plan.value.map((day, currentDayIndex) => {
+    if (currentDayIndex !== dayIndex) return day
+
+    return {
+      ...day,
+      meals: day.meals.map((meal, currentMealIndex) =>
+        currentMealIndex === mealIndex
+          ? { ...meal, locked: true, updatedAt: new Date().toISOString() }
+          : meal,
+      ),
+    }
+  })
+  savePlan()
+}
+
+function handleUnlockMeal({ dayIndex, mealIndex }) {
+  if (!plan.value[dayIndex]?.meals[mealIndex]) return
+
+  plan.value = plan.value.map((day, currentDayIndex) => {
+    if (currentDayIndex !== dayIndex) return day
+
+    return {
+      ...day,
+      meals: day.meals.map((meal, currentMealIndex) =>
+        currentMealIndex === mealIndex
+          ? { ...meal, locked: false, updatedAt: new Date().toISOString() }
+          : meal,
+      ),
+    }
+  })
+  savePlan()
+}
+
+function handleReplaceMeal({ dayIndex, mealIndex }) {
+  const oldMeal = plan.value[dayIndex]?.meals[mealIndex]
+  if (!oldMeal) return
+
+  if (oldMeal.locked) {
+    showToast('请先取消锁定再更换')
+    return
+  }
+
+  plan.value = regenerateSingleMeal(
+    plan.value,
+    dayIndex,
+    mealIndex,
+    params.value,
+    schedule.value,
+    resolveAvailableFoods(),
+  )
+  savePlan()
+  showToast('✅ 已更换')
 }
 
 async function handleClearData() {
@@ -345,13 +441,7 @@ async function handleFoodsSave(updatedPrefs) {
       recommendationReason: params.value?.recommendationReason ?? null,
     }
     setPlanMeta(plan.value, recFields)
-    lsSave('latestPlan', {
-      plan: plan.value,
-      ...planMeta.value,
-      scheduleSnapshot: schedule.value,
-      paramsSnapshot: params.value,
-    })
-    bgSave(params.value, schedule.value, plan.value, planMeta.value)
+    savePlan()
     foodSetupMode.value = false
     view.value = 'plan'
     return
@@ -424,6 +514,9 @@ function handleFoodsClose() {
           @refresh-recipe="handleRefreshRecipe"
           @clear-data="handleClearData"
           @manage-foods="handleManageFoods"
+          @lock-meal="handleLockMeal"
+          @unlock-meal="handleUnlockMeal"
+          @replace-meal="handleReplaceMeal"
         />
       </section>
       <FoodPreferences
