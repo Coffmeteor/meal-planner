@@ -31,8 +31,20 @@ export function loadSchedule() {
   return safeLoad(KEYS.schedule)
 }
 
-export function loadLatestPlan() {
-  return safeLoad(KEYS.latestPlan, [])
+export async function loadLatestPlan() {
+  const latestPlan = await safeLoad(KEYS.latestPlan)
+
+  if (Array.isArray(latestPlan)) {
+    return latestPlan.length
+      ? {
+          plan: latestPlan,
+          startDate: latestPlan[0]?.date ?? null,
+          generatedAt: null,
+        }
+      : null
+  }
+
+  return latestPlan
 }
 
 export function saveProfile(profile) {
@@ -43,8 +55,8 @@ export function saveSchedule(schedule) {
   return safeSave(KEYS.schedule, schedule)
 }
 
-export function saveLatestPlan(plan) {
-  return safeSave(KEYS.latestPlan, plan)
+export function saveLatestPlan(latestPlan) {
+  return safeSave(KEYS.latestPlan, latestPlan)
 }
 
 export async function deleteLatestPlan() {
@@ -74,6 +86,6 @@ export async function getAppState() {
     return { profile, schedule, latestPlan }
   } catch (error) {
     console.warn('Failed to load app state', error)
-    return { profile: null, schedule: null, latestPlan: [] }
+    return { profile: null, schedule: null, latestPlan: null }
   }
 }

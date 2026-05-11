@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { formatCalories, formatDate, formatMacros, formatTime } from '../utils/helpers.js'
 
 const props = defineProps({
@@ -7,7 +7,13 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  startDate: {
+    type: String,
+    default: null,
+  },
 })
+
+const emit = defineEmits(['editProfile', 'regenerate', 'clearData'])
 
 const selectedIndex = ref(0)
 
@@ -25,6 +31,45 @@ const macroStyle = computed(() => {
     background: `conic-gradient(#5ba66f 0 ${proteinEnd}%, #f0a24a ${proteinEnd}% ${carbsEnd}%, #e7c65a ${carbsEnd}% 100%)`,
   }
 })
+
+onMounted(() => {
+  if (props.startDate) {
+    const start = parsePlanDate(props.startDate)
+    start.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const diffDays = Math.floor((today - start) / (1000 * 60 * 60 * 24))
+
+    if (diffDays >= 0 && diffDays < props.plan.length) {
+      selectedIndex.value = diffDays
+    }
+  }
+})
+
+function dayLabel(dayObj) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dayDate = parsePlanDate(dayObj.date)
+
+  if (dayDate.toDateString() === today.toDateString()) return '今天'
+
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  if (dayDate.toDateString() === tomorrow.toDateString()) return '明天'
+
+  return formatDate(dayObj.date)
+}
+
+function parsePlanDate(dateValue) {
+  if (typeof dateValue === 'string') {
+    const [year, month, day] = dateValue.split('-').map(Number)
+    if (year && month && day) {
+      return new Date(year, month - 1, day)
+    }
+  }
+
+  return new Date(dateValue)
+}
 </script>
 
 <template>
@@ -38,15 +83,15 @@ const macroStyle = computed(() => {
         :class="{ active: selectedIndex === index }"
         @click="selectedIndex = index"
       >
-        <span>第{{ day.day }}天</span>
-        <strong>{{ formatDate(day.date) }}</strong>
+        <span>{{ dayLabel(day) }}</span>
+        <strong>第{{ day.day }}天</strong>
         <small>{{ formatCalories(day.totals.calories) }}</small>
       </button>
     </div>
 
     <div v-if="selectedDay" class="panel plan-detail">
       <div class="section-title compact">
-        <p>第三步</p>
+        <p>第{{ selectedIndex + 1 }}天 / 共{{ plan.length }}天</p>
         <h2>{{ formatDate(selectedDay.date) }} 饮食计划</h2>
       </div>
 
@@ -75,5 +120,15 @@ const macroStyle = computed(() => {
         </article>
       </div>
     </div>
+
+    <button type="button" class="ghost-action full-width" @click="emit('editProfile')">
+      修改资料
+    </button>
+    <button type="button" class="ghost-action full-width" @click="emit('regenerate')">
+      重新生成
+    </button>
+    <button type="button" class="ghost-action full-width" @click="emit('clearData')">
+      清空数据
+    </button>
   </section>
 </template>

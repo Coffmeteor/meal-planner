@@ -7,9 +7,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  editMode: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['submit'])
+const emit = defineEmits(['submit', 'cancel'])
 
 const form = reactive({
   gender: 'female',
@@ -123,6 +127,10 @@ function submitForm() {
       </div>
     </div>
 
-    <button class="primary-action" type="submit">生成作息建议</button>
+    <div v-if="editMode" class="action-row">
+      <button type="button" class="ghost-action" @click="emit('cancel')">放弃修改</button>
+      <button class="primary-action" type="submit">保存并重新生成计划</button>
+    </div>
+    <button v-else class="primary-action" type="submit">生成作息建议</button>
   </form>
 </template>

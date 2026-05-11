@@ -17,6 +17,17 @@ export function formatTime(time) {
 }
 
 export function formatDate(dateValue) {
-  const date = new Date(dateValue)
+  const date = parseDate(dateValue)
   return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+function parseDate(dateValue) {
+  if (typeof dateValue === 'string') {
+    const [year, month, day] = dateValue.split('-').map(Number)
+    if (year && month && day) {
+      return new Date(year, month - 1, day)
+    }
+  }
+
+  return new Date(dateValue)
 }

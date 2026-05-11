@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
-import WelcomeHome from './components/WelcomeHome.vue'
 import {
   clearAllData,
   getAppState,
@@ -17,9 +16,11 @@ const view = ref('input')
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
+const editMode = ref(false)
+const planMeta = ref(null)
 
 const progress = computed(() => {
-  const steps = { home: 0, input: 1, confirm: 2, plan: 3 }
+  const steps = { input: 1, confirm: 2, plan: 3 }
   return steps[view.value]
 })
 
@@ -28,10 +29,18 @@ onMounted(async () => {
     const appState = await getAppState()
     params.value = appState.profile
     schedule.value = appState.schedule
-    plan.value = Array.isArray(appState.latestPlan) ? appState.latestPlan : []
+    plan.value = appState.latestPlan?.plan || []
+    planMeta.value = plan.value.length
+      ? {
+          startDate: appState.latestPlan?.startDate ?? plan.value[0]?.date ?? null,
+          generatedAt: appState.latestPlan?.generatedAt ?? null,
+        }
+      : null
 
-    if (params.value || plan.value.length) {
-      view.value = 'home'
+    if (params.value && plan.value.length) {
+      view.value = 'plan'
+    } else {
+      view.value = 'input'
     }
   } catch (error) {
     console.warn('Failed to initialize app state', error)
@@ -41,49 +50,71 @@ onMounted(async () => {
 function handleInputSubmit(nextParams) {
   params.value = nextParams
   void saveProfile(nextParams)
-  view.value = 'confirm'
+  if (editMode.value) {
+    handleSaveAndRegenerate(nextParams)
+  } else {
+    view.value = 'confirm'
+  }
 }
 
 function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
   params.value = confirmedParams
   schedule.value = confirmedSchedule
   plan.value = generateMealPlan(confirmedParams, confirmedSchedule)
+  const now = new Date()
+  planMeta.value = {
+    generatedAt: now.toISOString(),
+    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
+  }
   void saveProfile(confirmedParams)
   void saveSchedule(confirmedSchedule)
-  void saveLatestPlan(plan.value)
+  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
   view.value = 'plan'
 }
 
-function continuePlan() {
-  if (plan.value.length) {
-    view.value = 'plan'
-    return
-  }
-
-  regeneratePlan()
-}
-
-function modifyProfile() {
+function handleEditProfile() {
+  editMode.value = true
   view.value = 'input'
 }
 
-function regeneratePlan() {
-  if (!params.value) {
-    view.value = 'input'
-    return
-  }
+function handleSaveAndRegenerate(newParams) {
+  editMode.value = false
+  params.value = newParams
+  void saveProfile(newParams)
 
   if (!schedule.value) {
     view.value = 'confirm'
     return
   }
 
-  plan.value = generateMealPlan(params.value, schedule.value)
-  void saveLatestPlan(plan.value)
+  plan.value = generateMealPlan(newParams, schedule.value)
+  const now = new Date()
+  planMeta.value = {
+    generatedAt: now.toISOString(),
+    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
+  }
+  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
   view.value = 'plan'
 }
 
-async function clearData() {
+function handleCancelEdit() {
+  editMode.value = false
+  view.value = 'plan'
+}
+
+function handleRegeneratePlan() {
+  if (!params.value || !schedule.value) return
+  plan.value = generateMealPlan(params.value, schedule.value)
+  const now = new Date()
+  planMeta.value = {
+    generatedAt: now.toISOString(),
+    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
+  }
+  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
+  view.value = 'plan'
+}
+
+async function handleClearData() {
   try {
     await clearAllData()
   } catch (error) {
@@ -93,12 +124,9 @@ async function clearData() {
   params.value = null
   schedule.value = null
   plan.value = []
+  editMode.value = false
+  planMeta.value = null
   view.value = 'input'
-}
-
-function restart() {
-  view.value = 'input'
-  plan.value = []
 }
 </script>
 
@@ -113,18 +141,12 @@ function restart() {
     </header>
 
     <Transition name="slide-fade" mode="out-in">
-      <WelcomeHome
-        v-if="view === 'home'"
-        key="home"
-        @continue="continuePlan"
-        @modify="modifyProfile"
-        @regenerate="regeneratePlan"
-        @clear="clearData"
-      />
       <InputForm
-        v-else-if="view === 'input'"
+        v-if="view === 'input'"
         key="input"
         :initial-data="params"
+        :edit-mode="editMode"
+        @cancel="handleCancelEdit"
         @submit="handleInputSubmit"
       />
       <ScheduleConfirm
@@ -135,8 +157,13 @@ function restart() {
         @confirm="handleConfirm"
       />
       <section v-else key="plan" class="result-stack">
-        <PlanCalendar :plan="plan" />
-        <button type="button" class="ghost-action full-width" @click="restart">重新填写</button>
+        <PlanCalendar
+          :plan="plan"
+          :start-date="planMeta?.startDate"
+          @edit-profile="handleEditProfile"
+          @regenerate="handleRegeneratePlan"
+          @clear-data="handleClearData"
+        />
       </section>
     </Transition>
   </main>
