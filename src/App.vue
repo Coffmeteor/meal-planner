@@ -151,7 +151,14 @@ function handleCancelEdit() {
 }
 
 function handleRegeneratePlan() {
-  if (!params.value || !schedule.value) return
+  if (!params.value) {
+    saveError.value = '缺少个人资料，请先填写资料'
+    return
+  }
+  if (!schedule.value) {
+    saveError.value = '缺少进食节律信息，请重新生成'
+    return
+  }
   plan.value = generateMealPlan(params.value, schedule.value)
   setPlanMeta(plan.value)
 
