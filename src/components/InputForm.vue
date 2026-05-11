@@ -1,6 +1,13 @@
 <script setup>
-import { reactive } from 'vue'
+import { reactive, watch } from 'vue'
 import { ACTIVITY_LEVELS } from '../utils/calc.js'
+
+const props = defineProps({
+  initialData: {
+    type: Object,
+    default: null,
+  },
+})
 
 const emit = defineEmits(['submit'])
 
@@ -13,6 +20,26 @@ const form = reactive({
   activity: 'light',
   days: 7,
 })
+
+watch(
+  () => props.initialData,
+  (initialData) => {
+    if (!initialData) {
+      return
+    }
+
+    Object.assign(form, {
+      gender: initialData.gender ?? form.gender,
+      age: initialData.age ?? form.age,
+      height: initialData.height ?? form.height,
+      weight: initialData.weight ?? form.weight,
+      targetWeight: initialData.targetWeight ?? form.targetWeight,
+      activity: initialData.activity ?? form.activity,
+      days: initialData.days ?? form.days,
+    })
+  },
+  { immediate: true },
+)
 
 function submitForm() {
   emit('submit', {
