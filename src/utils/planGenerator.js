@@ -165,20 +165,7 @@ function normalizeFoodPool(pool) {
 }
 
 function mealMatches(food, category) {
-  const inferredMealFit = {
-    protein: ['breakfast', 'lunch', 'dinner', 'snack'],
-    carb: ['breakfast', 'lunch', 'dinner'],
-    vegetable: ['lunch', 'dinner', 'snack'],
-    fat: ['snack'],
-    fruit: ['snack'],
-    dairy: ['breakfast', 'snack'],
-  }
-
-  if (food.mealFit) {
-    return food.mealFit.includes(category) || food.category === category
-  }
-
-  return food.category === category || inferredMealFit[food.category]?.includes(category)
+  return food.mealFit?.includes(category)
 }
 
 function mealPool(category, foodPool) {
@@ -217,7 +204,7 @@ function withFallback(primary, fallback, matcher) {
 function buildMainMeal(category, calorieTarget, offset, foodPool) {
   const fallbackPool = mealPool(category, normalizeFoodPool(foods))
   const pool = mealPool(category, foodPool)
-  const activePool = pool.length ? pool : fallbackPool
+  const activePool = pool.length ? pool : fallbackPool.length ? fallbackPool : normalizeFoodPool(foods)
   const proteins = withFallback(activePool, fallbackPool, isProtein)
   const staples = withFallback(activePool, fallbackPool, isStaple)
   const vegetables = withFallback(activePool, fallbackPool, isVegetable)
@@ -238,7 +225,7 @@ function buildMainMeal(category, calorieTarget, offset, foodPool) {
 function buildSnackMeal(calorieTarget, offset, foodPool) {
   const fallbackPool = mealPool('snack', normalizeFoodPool(foods))
   const pool = mealPool('snack', foodPool)
-  const activePool = pool.length ? pool : fallbackPool
+  const activePool = pool.length ? pool : fallbackPool.length ? fallbackPool : normalizeFoodPool(foods)
   const first = pickByTag(activePool, ['水果', '高蛋白', '植物蛋白'], offset)
   const second = pickByTag(activePool, ['坚果', '低热量', '饱腹'], offset + 2)
   const items = first?.id === second?.id ? [first] : [first, second].filter(Boolean)
