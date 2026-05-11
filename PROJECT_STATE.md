@@ -1,20 +1,52 @@
 # Project State
 
-## Current Capabilities
+## Current Version
 
-- Vue 3 + Vite SPA without vue-router; App.vue controls the wizard and app shell state.
-- Initial setup remains a wizard: InputForm -> RecommendView -> ScheduleConfirm -> FoodPreferences -> PlanCalendar.
-- After a meal plan exists, the app enters a fixed-bottom tab shell with five tabs: 餐单、食材、进度、打卡、我的.
-- Meal plan tab supports day selection, plan summary, meal locking, single-meal replacement, and full recipe refresh near the top of the page.
-- Food tab manages selected/default ingredients and custom ingredients, and can save or refresh recipes with the current food pool.
-- Progress tab supports weight logs, 7-day average, SVG trend chart, dynamic advice, and check-in review after enough check-ins.
-- Check-in tab supports today’s execution record, recent 7-day summary, review advice, record list, and confirmed deletion.
-- Profile tab summarizes local profile data, starts profile editing, explains browser-only storage, and clears all local data with double confirmation.
-- Local persistence uses IndexedDB and localStorage fallback; no account or cloud sync exists.
+**v0.1.0** — Commit: `611743c`
+
+## Completed Rounds
+
+| Round | Description |
+|-------|-------------|
+| Round 1 | MVP 主流程：InputForm → RecommendView → ScheduleConfirm → PlanCalendar |
+| Round 2 | 本地持久化（IndexedDB + localStorage）、App 式恢复 |
+| Round 3 | 小基数推荐、热量缺口、宏量营养素、计划摘要 |
+| Round 4 | 个人食材池、食材选择前置、刷新食谱、餐型模板/真实餐点、锁定餐点、单餐刷新 |
+| Round 5 | 体重记录、7 日均重、动态建议、SVG 体重趋势图 |
+| Round 6 | 每日执行打卡、7 天复盘 |
+| Round 7 | App Shell 底部 Tab 导航：餐单 / 食材 / 进度 / 打卡 / 我的 |
+
+## Core Capabilities (v0.1.0)
+
+- 5-step setup wizard: 资料 → 推荐 → 餐次 → 食材 → 餐单
+- Recommendation: diet method, calorie deficit (10%/15%/20%), macros (protein g/kg, fat floor, carb remainder)
+- Personal food pool: default + custom ingredients, toggle selection
+- Multi-day meal plan: calendar view, meal locking, single-meal replace, full refresh
+- App shell after plan creation with fixed bottom tab bar
+- Meal plan tab: day selector, plan summary, meal cards, lock/replace/refresh
+- Food tab: manage ingredients, add/delete custom, refresh recipes
+- Progress tab: weight logging, 7-day average, SVG trend chart, dynamic advice
+- Check-in tab: today's execution, 7-day review, record list with delete confirmation
+- Profile tab: profile summary, edit profile, browser-only storage notice, clear all data (double confirmation)
+- Navigation: wizard mode (no tabs) → app shell mode (bottom tabs)
+
+## Data
+
+- **Storage:** IndexedDB + localStorage fallback
+- **Scope:** Browser-local only
+- **No accounts, no cloud sync, no import/export**
+
+## Known Limitations
+
+- No user accounts or authentication
+- No cloud sync across devices
+- No import/export of data
+- Food nutrition data is product-grade estimation, not laboratory precision
+- Not medical advice — does not constitute health or nutrition diagnosis
 
 ## Next Steps
 
-- Manual H5 testing on iPhone-width viewports for tab scrolling, safe-area padding, and tap targets.
-- Verify edit-profile regeneration flow with existing plans and food preferences.
-- Review copy and visual hierarchy after real-device testing.
-- Wait for manual validation before tagging or creating a v0.1 release.
+- v0.1.x bugfix cycle (UI polish, edge cases)
+- Data export/import
+- Ingredient database refinement
+- More detailed review suggestions

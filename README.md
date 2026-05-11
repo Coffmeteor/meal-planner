@@ -1,24 +1,59 @@
-# Meal Planner H5
+# meal-planner
 
-Vue 3 + Vite single page H5 for lightweight fat-loss meal planning. The app runs fully in the browser and stores data locally with IndexedDB plus localStorage fallback.
+适合小基数人群的本地化减脂餐计划 H5。
 
-## v0.1 准备版
+Vue 3 + Vite 单页应用，数据只保存在当前浏览器本地，无账号、无云同步。
 
-- 5-step setup wizard: 资料、推荐、餐次、食材、餐单
-- Recommendation flow for diet method, calorie target, deficit and macro targets
-- Personal food pool with default ingredients and custom ingredients
-- Multi-day meal plan calendar with meal locking, single-meal replacement and full recipe refresh
-- App shell after plan creation with bottom tabs: 餐单、食材、进度、打卡、我的
-- Weight logging with 7-day average, trend chart and dynamic suggestions
-- Daily check-in with meal completion, eating out, exercise, sleep, hunger, adherence and notes
-- Local profile/settings page with edit profile and clear-all-data controls
+**部署方式:** GitHub Pages
+
+---
+
+## v0.1.0
+
+### 已具备功能
+
+- **身体资料输入：** 性别、年龄、身高、体重、目标体重、日常活动水平、运动情况
+- **作息与饮食场景：** 起床/睡觉时间、早餐习惯、午餐/晚餐结构
+- **小基数推荐方案：** 进食方式（均衡/16:8/14:10）、热量缺口建议、宏量营养素分配
+- **热量缺口：** 10% / 15% / 20% 可选，小基数保护
+- **宏量营养素：** 蛋白按体重 g/kg 计算、脂肪最低 0.8g/kg、碳水用剩余热量，含安全兜底
+- **个人可用食材池：** 内置默认食材，支持勾选/取消、自定义食材、删改
+- **自炊餐型模板 / 真实餐点：** 早餐、午餐、晚餐、加餐，含合理餐型分配
+- **食谱操作：** 全量刷新、单餐替换、锁定餐点
+- **体重记录：** 新增/删除，含饥饿感、执行度、备注
+- **趋势视图：** 7 日均重、SVG 趋势图、动态建议
+- **今日打卡：** 餐单完成度、外食/运动、睡眠、饥饿感、执行度 1-5、备注
+- **7 天复盘：** 最近 7 天执行摘要、复盘建议、最近打卡记录
+- **App Shell：** 生成计划后进入底部 Tab 界面：餐单 / 食材 / 进度 / 打卡 / 我的
+
+### 隐私说明
+
+- 所有数据只保存在当前浏览器的 IndexedDB 和 localStorage 中
+- 换设备不会自动同步
+- 清空浏览器数据将丢失所有信息
+- 无任何数据发送到服务器
+
+### 已知限制
+
+- 无账号系统
+- 无云同步
+- 无导入导出功能
+- 食材营养数据为产品级估算，非精准实验室数据
+- 非医疗建议，不构成健康或营养诊断
+
+---
 
 ## Development
 
 ```bash
 npm install
-npm run dev
-npm run build
+npm run dev     # 开发模式
+npm run build   # 生产构建
 ```
 
-No accounts, cloud sync, import/export, release tag, or GitHub Release are included in v0.1.
+## 后续计划
+
+- UI 继续精修
+- 食材库校准
+- 导出 / 导入备份
+- 更细粒度的复盘建议

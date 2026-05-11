@@ -729,9 +729,11 @@ button:disabled {
 
 @media (max-width: 520px) {
   .metric-grid,
-  .form-grid,
   .checkin-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 
   .log-item {
