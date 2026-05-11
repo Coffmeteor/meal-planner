@@ -10,7 +10,7 @@ import {
   saveProfile,
   saveSchedule,
 } from './storage/index.js'
-import { generateMealPlan } from './utils/planGenerator.js'
+import { generateMealPlan, generateSchedule } from './utils/planGenerator.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
 
@@ -33,14 +33,16 @@ const progress = computed(() => {
 onMounted(async () => {
   try {
     const appState = await getAppState()
-    params.value = appState.profile
-    schedule.value = appState.schedule
+    params.value = appState.profile || appState.latestPlan?.paramsSnapshot || null
+    schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     const lp = appState.latestPlan
     plan.value = lp?.plan || []
     planMeta.value = plan.value.length
       ? {
           startDate: lp?.startDate ?? plan.value[0]?.date ?? null,
           generatedAt: lp?.generatedAt ?? null,
+          scheduleSnapshot: lp?.scheduleSnapshot ?? null,
+          paramsSnapshot: lp?.paramsSnapshot ?? null,
         }
       : null
 
@@ -69,7 +71,12 @@ async function bgSave(profileData, scheduleData, planData, meta) {
     await Promise.all([
       saveProfile(profileData),
       saveSchedule(scheduleData),
-      saveLatestPlan({ plan: planData, ...meta }),
+      saveLatestPlan({
+        plan: planData,
+        ...meta,
+        scheduleSnapshot: scheduleData,
+        paramsSnapshot: profileData,
+      }),
     ])
     saveError.value = ''
   } catch (e) {
@@ -110,7 +117,12 @@ function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule })
   // 1. localStorage sync — instant, never blocks UI
   lsSave('profile', confirmedParams)
   lsSave('schedule', confirmedSchedule)
-  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+  lsSave('latestPlan', {
+    plan: plan.value,
+    ...planMeta.value,
+    scheduleSnapshot: schedule.value,
+    paramsSnapshot: params.value,
+  })
 
   // 2. Switch view immediately
   view.value = 'plan'
@@ -130,6 +142,11 @@ function handleSaveAndRegenerate(newParams) {
 
   if (!schedule.value) {
     lsSave('profile', newParams)
+    lsSave('latestPlan', {
+      plan: plan.value,
+      ...planMeta.value,
+      paramsSnapshot: newParams,
+    })
     bgSave(newParams, null, plan.value, planMeta.value)
     view.value = 'confirm'
     return
@@ -139,7 +156,12 @@ function handleSaveAndRegenerate(newParams) {
   setPlanMeta(plan.value)
 
   lsSave('profile', newParams)
-  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+  lsSave('latestPlan', {
+    plan: plan.value,
+    ...planMeta.value,
+    scheduleSnapshot: schedule.value,
+    paramsSnapshot: params.value,
+  })
 
   view.value = 'plan'
   bgSave(newParams, schedule.value, plan.value, planMeta.value)
@@ -150,22 +172,33 @@ function handleCancelEdit() {
   view.value = 'plan'
 }
 
-function handleRegeneratePlan() {
-  if (!params.value) {
+async function handleRegeneratePlan() {
+  let sched = schedule.value || planMeta.value?.scheduleSnapshot
+  const prof = params.value || planMeta.value?.paramsSnapshot
+
+  if (!prof) {
     saveError.value = '缺少个人资料，请先填写资料'
     return
   }
-  if (!schedule.value) {
-    saveError.value = '缺少进食节律信息，请重新生成'
-    return
+  if (!sched) {
+    const defaultTimes = generateSchedule(4)
+    sched = { mealCount: 4, times: defaultTimes }
   }
-  plan.value = generateMealPlan(params.value, schedule.value)
+
+  params.value = prof
+  schedule.value = sched
+  plan.value = generateMealPlan(prof, sched)
   setPlanMeta(plan.value)
 
-  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+  lsSave('latestPlan', {
+    plan: plan.value,
+    ...planMeta.value,
+    scheduleSnapshot: sched,
+    paramsSnapshot: prof,
+  })
 
   view.value = 'plan'
-  bgSave(params.value, schedule.value, plan.value, planMeta.value)
+  bgSave(prof, sched, plan.value, planMeta.value)
 }
 
 async function handleClearData() {
