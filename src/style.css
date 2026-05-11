@@ -521,6 +521,57 @@ button:focus-visible {
   text-align: center;
 }
 
+.food-search {
+  display: block;
+  width: 100%;
+}
+
+.food-search-input {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgba(255, 254, 251, 0.9);
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.food-search-input::placeholder {
+  color: rgba(129, 120, 103, 0.72);
+}
+
+.food-search-groups,
+.food-category-group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.food-category-heading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.food-card > span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.food-card-meta {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.food-card-static {
+  cursor: default;
+}
+
 .primary-action:active,
 .ghost-action:active,
 .segmented button:active,
@@ -584,6 +635,20 @@ button:focus-visible {
   flex-direction: column;
   gap: 1rem;
   padding-bottom: 5.5rem;
+}
+
+.back-icon-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--green-deep);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-soft);
+  font-size: 1.25rem;
+  font-weight: 900;
 }
 
 .recommend-card {

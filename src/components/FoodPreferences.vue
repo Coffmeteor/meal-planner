@@ -47,6 +47,7 @@ const defaultPortionByCategory = {
 const activeCategory = ref('all')
 const showForm = ref(false)
 const error = ref('')
+const searchQuery = ref('')
 const localPrefs = reactive({
   selectedFoodIds: [],
   customFoods: [],
@@ -84,12 +85,52 @@ const visibleDefaults = computed(() => {
 const sortedCustomFoods = computed(() =>
   [...localPrefs.customFoods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')),
 )
+const normalizedSearch = computed(() => searchQuery.value.trim().toLowerCase())
+const isSearching = computed(() => normalizedSearch.value.length > 0)
+const searchGroups = computed(() => {
+  if (!isSearching.value) return []
+
+  const groups = new Map()
+  const foods = [...DEFAULT_FOODS, ...localPrefs.customFoods]
+    .filter((food) => foodMatchesSearch(food, normalizedSearch.value))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+
+  for (const food of foods) {
+    const category = food.category || 'protein'
+    if (!groups.has(category)) groups.set(category, [])
+    groups.get(category).push(food)
+  }
+
+  return FOOD_CATEGORY_OPTIONS
+    .map((option) => ({
+      value: option.value,
+      label: option.label,
+      foods: groups.get(option.value) || [],
+    }))
+    .filter((group) => group.foods.length)
+})
 const selectedCount = computed(() =>
   localPrefs.selectedFoodIds.length + localPrefs.customFoods.length,
 )
 
 function isSelected(id) {
   return localPrefs.selectedFoodIds.includes(id)
+}
+
+function categoryLabel(food) {
+  return FOOD_CATEGORY_LABELS[food?.category] || food?.category || '其他'
+}
+
+function foodMatchesSearch(food, keyword) {
+  const category = food?.category || ''
+  const fields = [
+    food?.name,
+    category,
+    FOOD_CATEGORY_LABELS[category],
+    ...(Array.isArray(food?.tags) ? food.tags : []),
+  ]
+
+  return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
 }
 
 function toggleFood(id) {
@@ -234,6 +275,10 @@ function skipAll() {
       当前没有选择食材；生成或刷新餐单时将使用默认全部食材。
     </p>
 
+    <label class="food-search">
+      <input v-model="searchQuery" class="food-search-input" type="search" placeholder="搜索食材" />
+    </label>
+
     <div class="food-tabs" aria-label="食材分类">
       <button
         v-for="tab in tabs"
@@ -246,19 +291,54 @@ function skipAll() {
       </button>
     </div>
 
-    <div class="food-grid">
-      <button
-        v-for="food in visibleDefaults"
-        :key="food.id"
-        type="button"
-        class="food-card"
-        :class="{ selected: isSelected(food.id) }"
-        @click="toggleFood(food.id)"
-      >
-        <span>{{ food.name }}</span>
-        <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
-      </button>
-    </div>
+    <template v-if="isSearching">
+      <div v-if="searchGroups.length" class="food-search-groups">
+        <section v-for="group in searchGroups" :key="group.value" class="food-category-group">
+          <h3 class="food-category-heading">{{ group.label }}</h3>
+          <div class="food-grid">
+            <template v-for="food in group.foods" :key="food.id">
+              <button
+                v-if="food.source !== 'custom' && !String(food.id).startsWith('custom-')"
+                type="button"
+                class="food-card"
+                :class="{ selected: isSelected(food.id) }"
+                @click="toggleFood(food.id)"
+              >
+                <span>
+                  {{ food.name }}
+                  <small class="food-card-meta">{{ categoryLabel(food) }}</small>
+                </span>
+                <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+              </button>
+              <article v-else class="food-card food-card-static selected">
+                <span>
+                  {{ food.name }}
+                  <small class="food-card-meta">{{ categoryLabel(food) }} · 自定义</small>
+                </span>
+                <i>✓</i>
+              </article>
+            </template>
+          </div>
+        </section>
+      </div>
+      <p v-else class="empty-state">没有找到相关食材</p>
+    </template>
+
+    <template v-else>
+      <div class="food-grid">
+        <button
+          v-for="food in visibleDefaults"
+          :key="food.id"
+          type="button"
+          class="food-card"
+          :class="{ selected: isSelected(food.id) }"
+          @click="toggleFood(food.id)"
+        >
+          <span>{{ food.name }}</span>
+          <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+        </button>
+      </div>
+    </template>
 
     <div class="custom-section">
       <button type="button" class="ghost-action" @click="showForm = !showForm">
@@ -305,7 +385,7 @@ function skipAll() {
         <button type="button" class="primary-action" @click="addCustomFood">保存</button>
       </div>
 
-      <div v-if="sortedCustomFoods.length" class="custom-list">
+      <div v-if="!isSearching && sortedCustomFoods.length" class="custom-list">
         <article v-for="food in sortedCustomFoods" :key="food.id" class="custom-food">
           <div>
             <strong>{{ food.name }}</strong>

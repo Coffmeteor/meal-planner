@@ -32,7 +32,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['accept'])
+const emit = defineEmits(['accept', 'back'])
 
 const methodOptions = [
   {
@@ -115,6 +115,10 @@ function acceptRecommendation() {
 
 <template>
   <section class="recommend-stack">
+    <button type="button" class="back-icon-button" aria-label="返回资料填写" @click="emit('back')">
+      ←
+    </button>
+
     <article class="panel recommend-card">
       <div class="card-head">
         <span>进食方式</span>

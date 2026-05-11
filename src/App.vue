@@ -95,6 +95,13 @@ const headerPill = computed(() => {
   return progress.value ? `${progress.value}/5` : ''
 })
 const todayChecked = computed(() => checkins.value.some((item) => item.date === todayYmd()))
+const pageKey = computed(() => {
+  if (view.value !== 'plan') return `wizard:${view.value || 'loading'}`
+  if (activeTab.value !== 'plan') return `tab:${activeTab.value}`
+  if (editingDayFood.value !== null) return 'plan:day-food-editor'
+  if (editingMeal.value) return 'plan:meal-editor'
+  return 'plan:calendar'
+})
 
 watch(activeTab, (tab) => {
   if (!tabs.some((item) => item.value === tab)) return
@@ -103,6 +110,10 @@ watch(activeTab, (tab) => {
     editingDayFood.value = null
   }
   lsSave('activeTab', tab)
+})
+
+watch(pageKey, () => {
+  queueScrollToPageTop()
 })
 
 const editorMeal = computed(() => {
@@ -141,6 +152,21 @@ const dayFoodEditorFoods = computed(() => {
 // ── Startup ──────────────────────────────────────────────────────────
 
 onMounted(loadAppState)
+
+function scrollToPageTop() {
+  window.scrollTo({ top: 0, behavior: 'auto' })
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+
+  const content = document.querySelector('.app-content')
+  if (content) content.scrollTop = 0
+}
+
+function queueScrollToPageTop() {
+  nextTick(() => {
+    requestAnimationFrame(scrollToPageTop)
+  })
+}
 
 async function loadAppState() {
   try {
@@ -356,6 +382,10 @@ function handleInputSubmit(nextParams) {
   view.value = 'recommend'
 }
 
+function handleRecommendBack() {
+  view.value = 'input'
+}
+
 function currentEatingWindow() {
   const rawWindow = schedule.value?.eatingWindow || params.value?.eatingWindow
   return normalizeEatingWindow(
@@ -483,10 +513,6 @@ function handleRefreshRecipe() {
 function handleEditMeal({ dayIndex, mealIndex }) {
   if (!plan.value[dayIndex]?.meals?.[mealIndex]) return
   editingMeal.value = { dayIndex, mealIndex }
-  nextTick(() => {
-    const content = document.querySelector('.app-content')
-    if (content) content.scrollTop = 0
-  })
 }
 
 function handleCancelMealEdit() {
@@ -551,10 +577,6 @@ function handleEditDayFood(dayIndex) {
   if (!plan.value[dayIndex]) return
   editingMeal.value = null
   editingDayFood.value = dayIndex
-  nextTick(() => {
-    const content = document.querySelector('.app-content')
-    if (content) content.scrollTop = 0
-  })
 }
 
 function handleCancelDayFoodEdit() {
@@ -797,10 +819,6 @@ function handleFoodsClose() {
 
 function setActiveTab(tab) {
   activeTab.value = tab
-  nextTick(() => {
-    const content = document.querySelector('.app-content')
-    if (content) content.scrollTop = 0
-  })
 }
 </script>
 
@@ -916,7 +934,7 @@ function setActiveTab(tab) {
         <InputForm
           v-if="view === 'input'"
           key="input"
-          :initial-data="editMode ? params : null"
+          :initial-data="params"
           :edit-mode="editMode"
           @cancel="handleCancelEdit"
           @submit="handleInputSubmit"
@@ -937,6 +955,7 @@ function setActiveTab(tab) {
           :deficit-suggestion="recommendation.deficitSuggestion"
           :schedule-suggestion="recommendation.scheduleSuggestion"
           :macro-targets="recommendation.macroTargets"
+          @back="handleRecommendBack"
           @accept="handleRecommendAccept"
         />
         <FoodPreferences
