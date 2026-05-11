@@ -36,43 +36,34 @@ export function openDatabase() {
 }
 
 function transaction(storeMode, action) {
-  return openDatabase()
-    .then(
-      (db) =>
-        new Promise((resolve, reject) => {
-          if (!db) {
-            resolve(undefined)
-            return
-          }
+  return openDatabase().then((db) => {
+    if (!db) {
+      return Promise.reject(new Error('IndexedDB not available'))
+    }
 
-          try {
-            const tx = db.transaction(STORE_NAME, storeMode)
-            const store = tx.objectStore(STORE_NAME)
-            const request = action(store)
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, storeMode)
+      const store = tx.objectStore(STORE_NAME)
+      let result
 
-            request.onsuccess = () => resolve(request.result)
-            request.onerror = () => {
-              console.warn('IndexedDB request failed', request.error)
-              resolve(undefined)
-            }
-            // Wait for transaction complete so data is fully committed to disk
-            // before resolving. iOS Safari may not flush before onsuccess fires.
-            tx.oncomplete = () => {
-              /* already resolved by request.onsuccess */
-            }
-            tx.onerror = () => {
-              console.warn('IndexedDB transaction failed', tx.error)
-            }
-          } catch (error) {
-            console.warn('IndexedDB transaction setup failed', error)
-            resolve(undefined)
-          }
-        }),
-    )
-    .catch((error) => {
-      console.warn('IndexedDB operation failed', error)
-      return undefined
+      try {
+        const request = action(store)
+        request.onsuccess = () => {
+          result = request.result
+        }
+        request.onerror = () => reject(request.error)
+      } catch (error) {
+        reject(error)
+        return
+      }
+
+      // readwrite: resolve only after transaction fully commits to disk.
+      // request.onsuccess alone is not enough on iOS Safari.
+      tx.oncomplete = () => resolve(result)
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(new Error('Transaction aborted'))
     })
+  })
 }
 
 export function get(key) {

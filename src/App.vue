@@ -19,6 +19,7 @@ const schedule = ref(null)
 const plan = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
+const saveError = ref('')
 
 const progress = computed(() => {
   const steps = { input: 1, confirm: 2, plan: 3 }
@@ -39,8 +40,6 @@ onMounted(async () => {
         }
       : null
 
-    // If a valid plan exists, go directly to PlanCalendar.
-    // Profile is NOT required — plan data is the primary state.
     if (plan.value.length) {
       view.value = 'plan'
     } else {
@@ -50,6 +49,44 @@ onMounted(async () => {
     console.warn('Failed to initialize app state', error)
   }
 })
+
+// ── helpers ─────────────────────────────────────────────────────────
+
+async function saveAllAndVerify(profileData, scheduleData, planData, planMetaData) {
+  saveError.value = ''
+
+  const [profileOk, scheduleOk, planOk] = await Promise.all([
+    saveProfile(profileData),
+    saveSchedule(scheduleData),
+    saveLatestPlan({ plan: planData, ...planMetaData }),
+  ])
+
+  if (!planOk) {
+    saveError.value = '本地保存失败，请不要关闭页面，建议刷新后重试'
+    console.warn('IndexedDB write failed for latestPlan')
+    return false
+  }
+
+  // Verify by re-reading
+  const verify = await loadLatestPlan()
+  if (!verify?.plan?.length) {
+    saveError.value = '保存校验失败，请勿关闭页面'
+    console.warn('Save verification failed — latestPlan not readable after write')
+    return false
+  }
+
+  return true
+}
+
+function setPlanMeta(planArr) {
+  const now = new Date()
+  planMeta.value = {
+    generatedAt: now.toISOString(),
+    startDate: planArr[0]?.date ?? now.toISOString().slice(0, 10),
+  }
+}
+
+// ── handlers ────────────────────────────────────────────────────────
 
 function handleInputSubmit(nextParams) {
   params.value = nextParams
@@ -64,25 +101,10 @@ async function handleConfirm({ params: confirmedParams, schedule: confirmedSched
   params.value = confirmedParams
   schedule.value = confirmedSchedule
   plan.value = generateMealPlan(confirmedParams, confirmedSchedule)
-  const now = new Date()
-  planMeta.value = {
-    generatedAt: now.toISOString(),
-    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
-  }
-
-  // Await all saves before switching view, then verify
-  await Promise.all([
-    saveProfile(confirmedParams),
-    saveSchedule(confirmedSchedule),
-    saveLatestPlan({ plan: plan.value, ...planMeta.value }),
-  ])
-
-  const verify = await loadLatestPlan()
-  if (!verify?.plan?.length) {
-    console.warn('Save verification failed — latestPlan not readable after write')
-  }
-
-  view.value = 'plan'
+  setPlanMeta(plan.value)
+  const ok = await saveAllAndVerify(confirmedParams, confirmedSchedule, plan.value, planMeta.value)
+  if (ok) view.value = 'plan'
+  // If not ok, stay on current view with saveError shown
 }
 
 function handleEditProfile() {
@@ -93,27 +115,17 @@ function handleEditProfile() {
 async function handleSaveAndRegenerate(newParams) {
   editMode.value = false
   params.value = newParams
-  await saveProfile(newParams)
 
   if (!schedule.value) {
+    await saveProfile(newParams)
     view.value = 'confirm'
     return
   }
 
   plan.value = generateMealPlan(newParams, schedule.value)
-  const now = new Date()
-  planMeta.value = {
-    generatedAt: now.toISOString(),
-    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
-  }
-  await saveLatestPlan({ plan: plan.value, ...planMeta.value })
-
-  const verify = await loadLatestPlan()
-  if (!verify?.plan?.length) {
-    console.warn('Save verification failed — latestPlan not readable after write')
-  }
-
-  view.value = 'plan'
+  setPlanMeta(plan.value)
+  const ok = await saveAllAndVerify(newParams, schedule.value, plan.value, planMeta.value)
+  if (ok) view.value = 'plan'
 }
 
 function handleCancelEdit() {
@@ -124,19 +136,9 @@ function handleCancelEdit() {
 async function handleRegeneratePlan() {
   if (!params.value || !schedule.value) return
   plan.value = generateMealPlan(params.value, schedule.value)
-  const now = new Date()
-  planMeta.value = {
-    generatedAt: now.toISOString(),
-    startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
-  }
-  await saveLatestPlan({ plan: plan.value, ...planMeta.value })
-
-  const verify = await loadLatestPlan()
-  if (!verify?.plan?.length) {
-    console.warn('Save verification failed — latestPlan not readable after write')
-  }
-
-  view.value = 'plan'
+  setPlanMeta(plan.value)
+  const ok = await saveAllAndVerify(params.value, schedule.value, plan.value, planMeta.value)
+  if (ok) view.value = 'plan'
 }
 
 async function handleClearData() {
@@ -145,12 +147,12 @@ async function handleClearData() {
   } catch (error) {
     console.warn('Failed to clear app data', error)
   }
-
   params.value = null
   schedule.value = null
   plan.value = []
   editMode.value = false
   planMeta.value = null
+  saveError.value = ''
   view.value = 'input'
 }
 </script>
@@ -182,6 +184,7 @@ async function handleClearData() {
         @confirm="handleConfirm"
       />
       <section v-else key="plan" class="result-stack">
+        <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
         <PlanCalendar
           :plan="plan"
           :start-date="planMeta?.startDate"
@@ -193,3 +196,15 @@ async function handleClearData() {
     </Transition>
   </main>
 </template>
+
+<style scoped>
+.save-error-banner {
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  background: #fff0d8;
+  color: #c0392b;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-align: center;
+}
+</style>

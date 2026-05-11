@@ -1,4 +1,4 @@
-import { clear, deleteKey, get, set } from './db.js'
+import { clear as idbClear, deleteKey, get as idbGet, set as idbSet } from './db.js'
 
 const KEYS = {
   profile: 'profile',
@@ -6,22 +6,8 @@ const KEYS = {
   latestPlan: 'latestPlan',
 }
 
-async function safeLoad(key, fallback = null) {
-  try {
-    return (await get(key)) ?? fallback
-  } catch (error) {
-    console.warn(`Failed to load ${key}`, error)
-    return fallback
-  }
-}
-
-async function safeSave(key, value) {
-  try {
-    await set(key, value)
-  } catch (error) {
-    console.warn(`Failed to save ${key}`, error)
-  }
-}
+// localStorage fallback prefix — used when IndexedDB is unavailable or fails.
+const LS_PREFIX = 'meal-planner:v1:'
 
 /**
  * Normalize latestPlan to consistent { plan, startDate, generatedAt } shape.
@@ -30,13 +16,11 @@ async function safeSave(key, value) {
  */
 function normalizeLatestPlan(raw) {
   if (!raw) return null
-  // Old format: latestPlan was stored as a raw array
   if (Array.isArray(raw)) {
     return raw.length
       ? { plan: raw, startDate: raw[0]?.date ?? null, generatedAt: null }
       : null
   }
-  // New format: { plan, startDate, generatedAt }
   if (raw && Array.isArray(raw.plan) && raw.plan.length) {
     return {
       plan: raw.plan,
@@ -47,55 +31,117 @@ function normalizeLatestPlan(raw) {
   return null
 }
 
+// ── Dual storage helpers ────────────────────────────────────────────
+
+async function dualGet(key, fallback = null) {
+  // 1. Try IndexedDB
+  try {
+    const value = await idbGet(key)
+    if (value !== undefined && value !== null) return value
+  } catch (e) {
+    console.warn(`IDB read failed for ${key}`, e)
+  }
+  // 2. Fallback to localStorage
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key)
+    if (raw) return JSON.parse(raw)
+  } catch (e) {
+    console.warn(`localStorage read failed for ${key}`, e)
+  }
+  return fallback
+}
+
+async function dualSet(key, value) {
+  let idbOk = false
+  // 1. Write to IndexedDB (primary)
+  try {
+    await idbSet(key, value)
+    idbOk = true
+  } catch (e) {
+    console.warn(`IDB write failed for ${key}`, e)
+  }
+  // 2. Always write to localStorage (backup / cross-browser fallback)
+  try {
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(value))
+  } catch (e) {
+    console.warn(`localStorage write failed for ${key}`, e)
+  }
+  return idbOk // return whether primary storage succeeded
+}
+
+async function dualDelete(key) {
+  try {
+    await deleteKey(key)
+  } catch (e) { /* best-effort */ }
+  try {
+    localStorage.removeItem(LS_PREFIX + key)
+  } catch (e) { /* best-effort */ }
+}
+
+async function dualClear() {
+  try {
+    await idbClear()
+  } catch (e) { /* best-effort */ }
+  for (const k of Object.values(KEYS)) {
+    try { localStorage.removeItem(LS_PREFIX + k) } catch (e) { /* */ }
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────
+
 export function loadProfile() {
-  return safeLoad(KEYS.profile)
+  return dualGet(KEYS.profile)
 }
 
 export function loadSchedule() {
-  return safeLoad(KEYS.schedule)
+  return dualGet(KEYS.schedule)
 }
 
 export async function loadLatestPlan() {
-  const raw = await safeLoad(KEYS.latestPlan)
-  return normalizeLatestPlan(raw)
+  const raw = await dualGet(KEYS.latestPlan)
+  const normalized = normalizeLatestPlan(raw)
+
+  // If IDB returned nothing but localStorage had something, write back to IDB
+  // so next load is faster.
+  if (normalized && raw !== undefined) {
+    try {
+      const idbValue = await idbGet(KEYS.latestPlan)
+      if (!idbValue) {
+        await idbSet(KEYS.latestPlan, raw)
+      }
+    } catch (e) { /* best-effort */ }
+  }
+
+  return normalized
 }
 
-export function saveProfile(profile) {
-  return safeSave(KEYS.profile, profile)
+export async function saveProfile(profile) {
+  return dualSet(KEYS.profile, profile)
 }
 
-export function saveSchedule(schedule) {
-  return safeSave(KEYS.schedule, schedule)
+export async function saveSchedule(schedule) {
+  return dualSet(KEYS.schedule, schedule)
 }
 
-export function saveLatestPlan(latestPlan) {
-  return safeSave(KEYS.latestPlan, latestPlan)
+export async function saveLatestPlan(latestPlan) {
+  return dualSet(KEYS.latestPlan, latestPlan)
 }
 
 export async function deleteLatestPlan() {
-  try {
-    await deleteKey(KEYS.latestPlan)
-  } catch (error) {
-    console.warn('Failed to delete latest plan', error)
-  }
+  return dualDelete(KEYS.latestPlan)
 }
 
 export async function clearAllData() {
-  try {
-    await clear()
-  } catch (error) {
-    console.warn('Failed to clear local data', error)
-  }
+  await dualClear()
 }
 
 export async function getAppState() {
   try {
-    const [profile, schedule, latestPlan] = await Promise.all([
-      loadProfile(),
-      loadSchedule(),
-      loadLatestPlan(),
-    ])
-
+    // Load sequentially (not Promise.all) so localStorage fallback has
+    // a chance to write back to IndexedDB for each key.
+    const profile = await loadProfile()
+    const schedule = await loadSchedule()
+    const latestPlan = await loadLatestPlan()
     return { profile, schedule, latestPlan }
   } catch (error) {
     console.warn('Failed to load app state', error)
