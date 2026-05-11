@@ -6,25 +6,29 @@ import ScheduleConfirm from './components/ScheduleConfirm.vue'
 import {
   clearAllData,
   getAppState,
-  loadLatestPlan,
   saveLatestPlan,
   saveProfile,
   saveSchedule,
 } from './storage/index.js'
 import { generateMealPlan } from './utils/planGenerator.js'
 
-const view = ref('input')
+const LS_PREFIX = 'meal-planner:v1:'
+
+const view = ref(null) // null = loading; 'input' | 'confirm' | 'plan'
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
 const saveError = ref('')
+const saving = ref(false)
 
 const progress = computed(() => {
   const steps = { input: 1, confirm: 2, plan: 3 }
-  return steps[view.value]
+  return steps[view.value] || 0
 })
+
+// ── Startup ──────────────────────────────────────────────────────────
 
 onMounted(async () => {
   try {
@@ -40,43 +44,43 @@ onMounted(async () => {
         }
       : null
 
-    if (plan.value.length) {
-      view.value = 'plan'
-    } else {
-      view.value = 'input'
-    }
+    view.value = plan.value.length ? 'plan' : 'input'
   } catch (error) {
     console.warn('Failed to initialize app state', error)
+    view.value = 'input'
   }
 })
 
-// ── helpers ─────────────────────────────────────────────────────────
+// ── LocalStorage sync save (instant, non-blocking) ───────────────────
 
-async function saveAllAndVerify(profileData, scheduleData, planData, planMetaData) {
-  saveError.value = ''
-
-  const [profileOk, scheduleOk, planOk] = await Promise.all([
-    saveProfile(profileData),
-    saveSchedule(scheduleData),
-    saveLatestPlan({ plan: planData, ...planMetaData }),
-  ])
-
-  if (!planOk) {
-    saveError.value = '本地保存失败，请不要关闭页面，建议刷新后重试'
-    console.warn('IndexedDB write failed for latestPlan')
-    return false
-  }
-
-  // Verify by re-reading
-  const verify = await loadLatestPlan()
-  if (!verify?.plan?.length) {
-    saveError.value = '保存校验失败，请勿关闭页面'
-    console.warn('Save verification failed — latestPlan not readable after write')
-    return false
-  }
-
-  return true
+function lsSave(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)) } catch (e) { /* */ }
 }
+
+function lsRemove(key) {
+  try { localStorage.removeItem(LS_PREFIX + key) } catch (e) { /* */ }
+}
+
+// ── Background async save to IndexedDB ───────────────────────────────
+
+async function bgSave(profileData, scheduleData, planData, meta) {
+  saving.value = true
+  try {
+    await Promise.all([
+      saveProfile(profileData),
+      saveSchedule(scheduleData),
+      saveLatestPlan({ plan: planData, ...meta }),
+    ])
+    saveError.value = ''
+  } catch (e) {
+    saveError.value = '本地保存失败，数据可能下次无法恢复'
+    console.warn('IndexedDB bg save failed', e)
+  } finally {
+    saving.value = false
+  }
+}
+
+// ── Plan metadata helper ─────────────────────────────────────────────
 
 function setPlanMeta(planArr) {
   const now = new Date()
@@ -86,7 +90,7 @@ function setPlanMeta(planArr) {
   }
 }
 
-// ── handlers ────────────────────────────────────────────────────────
+// ── Handlers ─────────────────────────────────────────────────────────
 
 function handleInputSubmit(nextParams) {
   params.value = nextParams
@@ -97,14 +101,22 @@ function handleInputSubmit(nextParams) {
   }
 }
 
-async function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
+function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
   params.value = confirmedParams
   schedule.value = confirmedSchedule
   plan.value = generateMealPlan(confirmedParams, confirmedSchedule)
   setPlanMeta(plan.value)
-  const ok = await saveAllAndVerify(confirmedParams, confirmedSchedule, plan.value, planMeta.value)
-  if (ok) view.value = 'plan'
-  // If not ok, stay on current view with saveError shown
+
+  // 1. localStorage sync — instant, never blocks UI
+  lsSave('profile', confirmedParams)
+  lsSave('schedule', confirmedSchedule)
+  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+
+  // 2. Switch view immediately
+  view.value = 'plan'
+
+  // 3. IndexedDB in background — fire and forget
+  bgSave(confirmedParams, confirmedSchedule, plan.value, planMeta.value)
 }
 
 function handleEditProfile() {
@@ -112,20 +124,25 @@ function handleEditProfile() {
   view.value = 'input'
 }
 
-async function handleSaveAndRegenerate(newParams) {
+function handleSaveAndRegenerate(newParams) {
   editMode.value = false
   params.value = newParams
 
   if (!schedule.value) {
-    await saveProfile(newParams)
+    lsSave('profile', newParams)
+    bgSave(newParams, null, plan.value, planMeta.value)
     view.value = 'confirm'
     return
   }
 
   plan.value = generateMealPlan(newParams, schedule.value)
   setPlanMeta(plan.value)
-  const ok = await saveAllAndVerify(newParams, schedule.value, plan.value, planMeta.value)
-  if (ok) view.value = 'plan'
+
+  lsSave('profile', newParams)
+  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+
+  view.value = 'plan'
+  bgSave(newParams, schedule.value, plan.value, planMeta.value)
 }
 
 function handleCancelEdit() {
@@ -133,45 +150,53 @@ function handleCancelEdit() {
   view.value = 'plan'
 }
 
-async function handleRegeneratePlan() {
+function handleRegeneratePlan() {
   if (!params.value || !schedule.value) return
   plan.value = generateMealPlan(params.value, schedule.value)
   setPlanMeta(plan.value)
-  const ok = await saveAllAndVerify(params.value, schedule.value, plan.value, planMeta.value)
-  if (ok) view.value = 'plan'
+
+  lsSave('latestPlan', { plan: plan.value, ...planMeta.value })
+
+  view.value = 'plan'
+  bgSave(params.value, schedule.value, plan.value, planMeta.value)
 }
 
 async function handleClearData() {
   try {
     await clearAllData()
-  } catch (error) {
-    console.warn('Failed to clear app data', error)
-  }
+  } catch (e) { /* */ }
+  for (const k of ['profile', 'schedule', 'latestPlan']) lsRemove(k)
   params.value = null
   schedule.value = null
   plan.value = []
   editMode.value = false
   planMeta.value = null
   saveError.value = ''
+  saving.value = false
   view.value = 'input'
 }
 </script>
 
 <template>
   <main class="app-shell">
-    <header class="app-header">
+    <header v-if="view" class="app-header">
       <div>
         <span class="eyebrow">轻盈餐盘</span>
         <h1>减脂餐计划</h1>
       </div>
-      <div class="progress-pill">{{ progress }}/3</div>
+      <div v-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
+      <div v-else class="progress-pill">餐单</div>
     </header>
 
-    <Transition name="slide-fade" mode="out-in">
+    <div v-if="!view" class="loading-shell">
+      <div class="loading-dot"></div>
+    </div>
+
+    <Transition v-else name="slide-fade" mode="out-in">
       <InputForm
         v-if="view === 'input'"
         key="input"
-        :initial-data="params"
+        :initial-data="editMode ? params : null"
         :edit-mode="editMode"
         @cancel="handleCancelEdit"
         @submit="handleInputSubmit"
@@ -198,6 +223,23 @@ async function handleClearData() {
 </template>
 
 <style scoped>
+.loading-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.loading-dot {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--green, #5ba66f);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
 .save-error-banner {
   padding: 0.75rem 1rem;
   border-radius: 0.85rem;
