@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import CheckinProgress from './components/CheckinProgress.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
@@ -9,6 +10,7 @@ import WeightProgress from './components/WeightProgress.vue'
 import {
   clearAllData,
   getAppState,
+  loadCheckins,
   loadWeightLogs,
   saveLatestPlan,
   saveProfile,
@@ -36,11 +38,12 @@ import {
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
 
-const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods' | 'progress'
+const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods' | 'progress' | 'checkin'
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
 const weightLogs = ref([])
+const checkins = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
 const foodPrefs = ref(null)
@@ -64,15 +67,17 @@ const progress = computed(() => {
 
 onMounted(async () => {
   try {
-    const [appState, loadedFoodPrefs, loadedWeightLogs] = await Promise.all([
+    const [appState, loadedFoodPrefs, loadedWeightLogs, loadedCheckins] = await Promise.all([
       getAppState(),
       loadFoodPreferences(),
       loadWeightLogs(),
+      loadCheckins(),
     ])
     const lp = appState.latestPlan
     const rawLatestPlan = readLatestPlanFromLocalStorage()
     foodPrefs.value = loadedFoodPrefs
     weightLogs.value = loadedWeightLogs
+    checkins.value = loadedCheckins
     params.value = lp?.paramsSnapshot || appState.profile || null
     schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     plan.value = lp?.plan || []
@@ -409,11 +414,12 @@ async function handleClearData() {
   try {
     await clearAllData()
   } catch (e) { /* */ }
-  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences', 'weightLogs']) lsRemove(k)
+  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences', 'weightLogs', 'checkins']) lsRemove(k)
   params.value = null
   schedule.value = null
   plan.value = []
   weightLogs.value = []
+  checkins.value = []
   foodPrefs.value = emptyPreferences()
   foodSetupMode.value = false
   editMode.value = false
@@ -440,6 +446,15 @@ function handleViewProgress() {
 
 function handleWeightLogsSave(updatedLogs) {
   weightLogs.value = updatedLogs
+  view.value = 'plan'
+}
+
+function handleViewCheckin() {
+  view.value = 'checkin'
+}
+
+function handleCheckinSave(updated) {
+  checkins.value = updated
   view.value = 'plan'
 }
 
@@ -485,6 +500,7 @@ function handleFoodsClose() {
       </div>
       <div v-if="view === 'foods'" class="progress-pill">食材</div>
       <div v-else-if="view === 'progress'" class="progress-pill">进度</div>
+      <div v-else-if="view === 'checkin'" class="progress-pill">打卡</div>
       <div v-else-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
       <div v-else class="progress-pill">餐单</div>
     </header>
@@ -531,6 +547,7 @@ function handleFoodsClose() {
           @clear-data="handleClearData"
           @manage-foods="handleManageFoods"
           @view-progress="handleViewProgress"
+          @view-checkin="handleViewCheckin"
           @lock-meal="handleLockMeal"
           @unlock-meal="handleUnlockMeal"
           @replace-meal="handleReplaceMeal"
@@ -541,9 +558,17 @@ function handleFoodsClose() {
         key="progress"
         :weight-logs="weightLogs"
         :profile="params"
+        :checkins="checkins"
         :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
         :start-date="planMeta?.startDate || null"
         @save="handleWeightLogsSave"
+        @close="view = 'plan'"
+      />
+      <CheckinProgress
+        v-else-if="view === 'checkin'"
+        key="checkin"
+        :checkins="checkins"
+        @save="handleCheckinSave"
         @close="view = 'plan'"
       />
       <FoodPreferences

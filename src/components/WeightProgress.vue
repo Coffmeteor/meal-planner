@@ -7,6 +7,7 @@ import {
   generateAdvice,
   getTargetCurve,
 } from '../utils/progress.js'
+import { analyzeRecentCheckins, generateCheckinAdvice } from '../utils/checkins.js'
 
 const props = defineProps({
   weightLogs: {
@@ -16,6 +17,10 @@ const props = defineProps({
   profile: {
     type: Object,
     default: null,
+  },
+  checkins: {
+    type: Array,
+    default: () => [],
   },
   planDays: {
     type: Number,
@@ -45,6 +50,9 @@ const sortedLogs = computed(() =>
 const latestLog = computed(() => sortedLogs.value[0] || null)
 const trendInfo = computed(() => analyzeWeightTrend(props.weightLogs))
 const advice = computed(() => generateAdvice(props.weightLogs, props.profile))
+const checkinAnalysis = computed(() => analyzeRecentCheckins(props.checkins))
+const checkinAdvice = computed(() => generateCheckinAdvice(props.checkins, trendInfo.value))
+const shouldShowCheckinSummary = computed(() => checkinAnalysis.value.count >= 3)
 const targetCurve = computed(() => getTargetCurve(props.profile, props.planDays))
 const chartData = computed(() => buildWeightChartData(
   props.weightLogs,
@@ -246,6 +254,16 @@ async function handleDelete(log) {
     <div class="advice-panel">
       <span>轻量建议</span>
       <p>{{ advice }}</p>
+    </div>
+
+    <div v-if="shouldShowCheckinSummary" class="advice-panel checkin-summary">
+      <span>执行复盘</span>
+      <div class="checkin-summary-grid">
+        <strong>执行率 {{ Math.round(checkinAnalysis.adherenceRate * 100) }}%</strong>
+        <strong>外食 {{ checkinAnalysis.ateOutCount }} 次</strong>
+        <strong>运动 {{ checkinAnalysis.exerciseCount }} 次</strong>
+      </div>
+      <p>{{ checkinAdvice }}</p>
     </div>
 
     <div v-if="chartData.actualPoints.length >= 2" class="chart-panel">
@@ -484,6 +502,24 @@ async function handleDelete(log) {
   line-height: 1.55;
 }
 
+.checkin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.checkin-summary-grid strong {
+  min-width: 0;
+  padding: 0.55rem 0.45rem;
+  border-radius: 0.65rem;
+  background: #f6f8f4;
+  color: #223026;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .chart-panel {
   padding: 1rem;
 }
@@ -688,7 +724,8 @@ button:disabled {
 
 @media (max-width: 520px) {
   .metric-grid,
-  .form-grid {
+  .form-grid,
+  .checkin-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

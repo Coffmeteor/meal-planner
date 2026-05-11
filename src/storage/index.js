@@ -6,6 +6,7 @@ const KEYS = {
   latestPlan: 'latestPlan',
   foodPreferences: 'foodPreferences',
   weightLogs: 'weightLogs',
+  checkins: 'checkins',
 }
 
 // localStorage fallback prefix — used when IndexedDB is unavailable or fails.
@@ -202,6 +203,51 @@ export async function deleteWeightLog(logId) {
   const logs = await loadWeightLogs()
   const filtered = logs.filter((log) => log.id !== logId)
   await dualSet(KEYS.weightLogs, filtered)
+  return filtered
+}
+
+export async function loadCheckins() {
+  const raw = await dualGet(KEYS.checkins)
+  if (!Array.isArray(raw)) return []
+  return raw
+}
+
+export async function saveCheckin(entry) {
+  const logs = await loadCheckins()
+  const existingIndex = logs.findIndex((log) => log.date === entry.date)
+  const now = new Date().toISOString()
+
+  if (existingIndex >= 0) {
+    logs[existingIndex] = {
+      ...logs[existingIndex],
+      ...entry,
+      updatedAt: now,
+    }
+  } else {
+    logs.push({
+      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      date: entry.date,
+      mealCompleted: entry.mealCompleted ?? 'partial',
+      ateOut: !!entry.ateOut,
+      exerciseDone: !!entry.exerciseDone,
+      sleepQuality: entry.sleepQuality ?? null,
+      hungerLevel: entry.hungerLevel ?? null,
+      adherenceLevel: entry.adherenceLevel ?? null,
+      note: entry.note ?? '',
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  logs.sort((a, b) => b.date.localeCompare(a.date))
+  await dualSet(KEYS.checkins, logs)
+  return logs
+}
+
+export async function deleteCheckin(logId) {
+  const logs = await loadCheckins()
+  const filtered = logs.filter((log) => log.id !== logId)
+  await dualSet(KEYS.checkins, filtered)
   return filtered
 }
 
