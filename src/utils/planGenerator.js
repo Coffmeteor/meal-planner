@@ -5,6 +5,7 @@ import {
   deriveTimeBeforeSleep,
 } from './calc.js'
 import { foods } from './foods.js'
+import { MEAL_TEMPLATES } from './mealTemplates.js'
 
 const mealNameMap = {
   2: ['午餐', '晚餐'],
@@ -30,6 +31,8 @@ const splitMap = {
   5: [0.24, 0.1, 0.32, 0.1, 0.24],
   6: [0.22, 0.09, 0.28, 0.09, 0.24, 0.08],
 }
+
+let mealPlanGenerationIndex = 0
 
 export function generateSchedule(mealCount = 4) {
   const schedules = {
@@ -238,6 +241,179 @@ function buildSnackMeal(calorieTarget, offset, foodPool) {
   return items.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
 
+function fillNamePattern(pattern, slotFoods) {
+  let result = pattern
+
+  for (const [slotKey, food] of Object.entries(slotFoods)) {
+    result = result.replaceAll(`{${slotKey}}`, food?.name ?? '')
+  }
+
+  return result.replace(/\{[^}]+\}/g, '')
+}
+
+function cleanPatternText(text) {
+  return text
+    .replaceAll('和即可', '即可')
+    .replaceAll('和，', '，')
+    .replaceAll('和。', '。')
+    .replaceAll('和食用', '食用')
+    .replaceAll('和搭配', '搭配')
+}
+
+function fillStepPattern(pattern, slotFoods) {
+  let result = pattern
+  const names = Object.values(slotFoods)
+    .filter(Boolean)
+    .map((food) => food.name)
+  const nameList =
+    names.length > 1
+      ? `${names.slice(0, -1).join('、')}和${names[names.length - 1]}`
+      : names[0] || ''
+
+  result = result.replace('{nameList}', nameList)
+  for (const [slotKey, food] of Object.entries(slotFoods)) {
+    result = result.replaceAll(`{${slotKey}}`, food?.name ?? '')
+  }
+
+  return cleanPatternText(result.replace(/\{[^}]+\}/g, ''))
+}
+
+function pickTemplate(mealType, dayIndex, mealIndex, usedTemplateIds) {
+  const candidates = MEAL_TEMPLATES.filter((template) => template.mealType === mealType)
+  const fresh = candidates.filter((template) => !usedTemplateIds?.has(template.id))
+  const pool = fresh.length ? fresh : candidates
+
+  return pool[(dayIndex * 3 + mealIndex) % pool.length] || null
+}
+
+function pickFoodForSlot(foodPool, slot, mealCategory, offset, usedFoodIds) {
+  const categoryPool = foodPool.filter((food) => food.category === slot.category)
+  const mealPool = categoryPool.filter((food) => mealMatches(food, mealCategory))
+  let pool = mealPool.length ? mealPool : categoryPool
+
+  if (slot.filter?.length) {
+    pool = pool.filter((food) => slot.filter.some((name) => food.name.includes(name)))
+  }
+
+  const fresh = pool.filter((food) => !usedFoodIds?.has(food.id))
+  const effective = fresh.length ? fresh : pool
+
+  if (!effective.length) return null
+  return effective[offset % effective.length]
+}
+
+function templateMealType(category) {
+  if (category === 'snack') return 'snack'
+  if (category === 'breakfast') return 'breakfast'
+  return 'main'
+}
+
+function createMealWithTemplate({
+  time,
+  index,
+  mealCount,
+  calorieTarget,
+  dayIndex,
+  mealNames,
+  foodPool,
+  usedFoodIds,
+  usedTemplateIds,
+  generationSeed = 0,
+}) {
+  const meta = getMealMeta(mealCount, index, mealNames)
+  const offset = generationSeed + dayIndex * mealCount + index
+
+  if (meta.type === 'snack') {
+    const items = buildSnackMeal(calorieTarget, offset, foodPool)
+    const totals = sumFoods(items)
+
+    return {
+      time,
+      name: getMealName(mealCount, index, mealNames),
+      portion: items.map((item) => `${item.name}${item.portion}${item.unit}`).join(' + '),
+      calories: totals.calories,
+      protein: totals.protein,
+      carbs: totals.carbs,
+      fat: totals.fat,
+      items,
+      simpleSteps: '即食，无需烹饪。',
+      templateLabel: '轻食',
+    }
+  }
+
+  const template = pickTemplate(
+    templateMealType(meta.category),
+    dayIndex + generationSeed,
+    index,
+    usedTemplateIds,
+  )
+  if (!template) {
+    return createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames, foodPool })
+  }
+  usedTemplateIds?.add(template.id)
+
+  const allFoods = foodPool.length ? foodPool : normalizeFoodPool(foods)
+  const defaultFoods = normalizeFoodPool(foods)
+  const slotFoods = {}
+
+  for (const slot of template.slots) {
+    const food = pickFoodForSlot(allFoods, slot, meta.category, offset, usedFoodIds)
+
+    if (food) {
+      slotFoods[slot.category] = food
+      usedFoodIds?.add(food.id)
+      continue
+    }
+
+    if (slot.required) {
+      const categoryFallback = defaultFoods.filter((item) => item.category === slot.category)
+      const mealFallback = categoryFallback.filter((item) => mealMatches(item, meta.category))
+      let fallbackPool = mealFallback.length ? mealFallback : categoryFallback
+
+      if (slot.filter?.length) {
+        fallbackPool = fallbackPool.filter((item) =>
+          slot.filter.some((name) => item.name.includes(name)),
+        )
+      }
+      const fallbackFood = fallbackPool[offset % fallbackPool.length]
+
+      if (fallbackFood) {
+        slotFoods[slot.category] = fallbackFood
+        usedFoodIds?.add(fallbackFood.id)
+      }
+    }
+  }
+
+  const items = Object.values(slotFoods).filter(Boolean)
+  if (!items.length) {
+    return createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames, foodPool })
+  }
+
+  const baseCalories = items.reduce(
+    (total, food) => total + food.calories * (food.defaultPortion / 100),
+    0,
+  )
+  const scale = Math.min(1.7, Math.max(0.75, calorieTarget / Math.max(baseCalories, 1)))
+  const scaledItems = items.map((food) =>
+    scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5),
+  )
+  const totals = sumFoods(scaledItems)
+
+  return {
+    time,
+    name: fillNamePattern(template.namePattern, slotFoods),
+    portion: scaledItems.map((item) => `${item.name}${item.portion}${item.unit}`).join(' + '),
+    calories: totals.calories,
+    protein: totals.protein,
+    carbs: totals.carbs,
+    fat: totals.fat,
+    items: scaledItems,
+    simpleSteps: fillStepPattern(template.simpleStepPattern, slotFoods),
+    templateLabel: template.tags?.[0] || '自炊',
+    templateId: template.id,
+  }
+}
+
 function createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames, foodPool }) {
   const meta = getMealMeta(mealCount, index, mealNames)
   const offset = dayIndex * mealCount + index
@@ -266,6 +442,8 @@ function addDays(date, days) {
 }
 
 export function generateMealPlan(params, schedule = {}, availableFoods = null) {
+  const generationSeed = mealPlanGenerationIndex
+  mealPlanGenerationIndex += 1
   const foodPool = normalizeFoodPool(availableFoods?.length ? availableFoods : foods)
   const baseTargets = calculateDailyTargets(params)
   const calories = Number(params.targetCalories) || baseTargets.calories
@@ -284,8 +462,10 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null) {
 
   return Array.from({ length: days }, (_, dayIndex) => {
     const date = addDays(start, dayIndex)
+    const usedFoodIds = new Set()
+    const usedTemplateIds = new Set()
     const meals = times.map((time, index) =>
-      createMeal({
+      createMealWithTemplate({
         time,
         index,
         mealCount,
@@ -293,6 +473,9 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null) {
         dayIndex,
         mealNames,
         foodPool,
+        usedFoodIds,
+        usedTemplateIds,
+        generationSeed,
       }),
     )
     const totals = sumFoods(meals)

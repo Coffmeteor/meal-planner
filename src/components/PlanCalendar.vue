@@ -185,6 +185,7 @@ function parsePlanDate(dateValue) {
             <em>{{ formatCalories(meal.calories) }}</em>
           </div>
           <p>{{ meal.portion }}</p>
+          <p v-if="meal.simpleSteps" class="meal-steps">{{ meal.simpleSteps }}</p>
           <small>{{ formatMacros(meal) }}</small>
         </article>
       </div>
@@ -242,5 +243,12 @@ function parsePlanDate(dateValue) {
 
 .macro-summary span {
   color: #7a847d;
+}
+
+.meal-steps {
+  font-size: 0.78rem;
+  color: #666;
+  margin-top: 0.3rem;
+  line-height: 1.4;
 }
 </style>
