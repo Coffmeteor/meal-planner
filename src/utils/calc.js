@@ -41,12 +41,133 @@ export function calculateMacros(calories) {
 export function calculateDailyTargets(params) {
   const bmr = calculateBmr(params)
   const tdee = calculateTdee(params)
-  const calories = calculateTargetCalories(params)
+  const calories = Number(params.targetCalories) || calculateTargetCalories(params)
 
   return {
     bmr,
     tdee,
     calories,
-    macros: calculateMacros(calories),
+    macros: params.macroTargets || calculateMacros(calories),
   }
+}
+
+export function suggestDietMethod(profile) {
+  const wakeTime = profile?.wakeTime ?? '07:00'
+  const breakfastHabit = profile?.breakfastHabit ?? 'always'
+  const exerciseFreq = Number(profile?.exerciseFreq ?? 1)
+  const hasStrength = Boolean(profile?.hasStrength)
+
+  if (breakfastHabit === 'skip') {
+    return {
+      method: '14:10',
+      reason: '你平时基本不吃早餐，14:10 可以保留午餐、加餐和晚餐，执行成本更低。',
+    }
+  }
+
+  if (breakfastHabit === 'sometimes' && wakeTime >= '08:30') {
+    return {
+      method: '14:10',
+      reason: '你起床较晚且早餐不固定，压缩进食窗口更贴近日常节奏。',
+    }
+  }
+
+  if (exerciseFreq >= 4 && hasStrength) {
+    return {
+      method: 'threeMealsPlusSnack',
+      reason: '运动频率高且包含力量训练，三餐加一次加餐更利于分配蛋白质和训练后补给。',
+    }
+  }
+
+  if (exerciseFreq >= 3 && exerciseFreq <= 4 && !hasStrength) {
+    return {
+      method: 'threeMeals',
+      reason: '你的运动频率中等，稳定三餐更容易控制总热量和饱腹感。',
+    }
+  }
+
+  return {
+    method: 'threeMeals',
+    reason: '正常三餐适合多数日常节奏，餐次简单，执行稳定。',
+  }
+}
+
+export function calculateDeficitPercent(profile) {
+  const gender = profile?.gender ?? 'female'
+  const weight = Number(profile?.weight ?? 0)
+  const targetWeight = Number(profile?.targetWeight ?? weight)
+  const isLightWeight = (gender === 'female' && weight <= 55) || (gender === 'male' && weight <= 65)
+  const isNearTarget = Math.abs(weight - targetWeight) <= 3
+
+  if (isLightWeight || isNearTarget) {
+    return {
+      recommended: 0.1,
+      options: [0.1, 0.15],
+      warning: null,
+    }
+  }
+
+  return {
+    recommended: 0.15,
+    options: [0.1, 0.15, 0.2],
+    warning: '20% 热量缺口较大，建议短期使用，并关注疲劳、饥饿和训练状态。',
+  }
+}
+
+export function calculateTargetCaloriesV2(tdee, deficitPercent, gender) {
+  const deficit = Math.round(tdee * deficitPercent)
+  const minCalories = gender === 'female' ? 1200 : 1400
+  return Math.round(Math.max(minCalories, tdee - deficit))
+}
+
+export function calculateMacrosV2(params, calories, deficitPercent) {
+  const weight = Number(params?.weight ?? 0)
+  const targetCalories = Math.round(Number(calories) || 0)
+  const proteinPerKg = params?.hasStrength ? 1.8 : 1.5
+  const protein = Math.round(weight * proteinPerKg)
+  const minFatByWeight = weight * 0.8
+  const minFatByCalories = (targetCalories * 0.2) / 9
+  const fat = Math.round(Math.max(minFatByWeight, minFatByCalories))
+  const proteinCal = protein * 4
+  const fatCal = fat * 9
+
+  if (proteinCal + fatCal >= targetCalories) {
+    return {
+      calories: targetCalories,
+      protein,
+      fat,
+      carbs: 0,
+      warning: '目标热量过低，建议降低热量缺口或提高目标热量',
+      deficitPercent,
+    }
+  }
+
+  return {
+    calories: targetCalories,
+    protein,
+    fat,
+    carbs: Math.round((targetCalories - proteinCal - fatCal) / 4),
+    warning: null,
+    deficitPercent,
+  }
+}
+
+function parseTimeToMinutes(time) {
+  const [hour = '0', minute = '0'] = String(time || '00:00').split(':')
+  return Number(hour) * 60 + Number(minute)
+}
+
+function formatMinutes(totalMinutes) {
+  const minutesInDay = 24 * 60
+  const normalized = ((Math.round(totalMinutes) % minutesInDay) + minutesInDay) % minutesInDay
+  const hour = Math.floor(normalized / 60)
+  const minute = normalized % 60
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+export function deriveTimeAfterWake(wakeTime, hoursAfter) {
+  return formatMinutes(parseTimeToMinutes(wakeTime) + Number(hoursAfter) * 60)
+}
+
+export function deriveTimeBeforeSleep(sleepTime, hoursBefore) {
+  return formatMinutes(parseTimeToMinutes(sleepTime) - Number(hoursBefore) * 60)
 }

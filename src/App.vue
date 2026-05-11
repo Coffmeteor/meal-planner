@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
+import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
 import {
   clearAllData,
@@ -10,16 +11,28 @@ import {
   saveProfile,
   saveSchedule,
 } from './storage/index.js'
-import { generateMealPlan, generateSchedule } from './utils/planGenerator.js'
+import {
+  calculateDeficitPercent,
+  calculateMacrosV2,
+  calculateTargetCaloriesV2,
+  calculateTdee,
+  suggestDietMethod,
+} from './utils/calc.js'
+import {
+  generateMealPlan,
+  generateSchedule,
+  generateScheduleFromProfile,
+} from './utils/planGenerator.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
 
-const view = ref(null) // null = loading; 'input' | 'confirm' | 'plan'
+const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan'
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
+const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
 const toastMsg = ref('')
@@ -30,7 +43,7 @@ function showToast(msg) {
 }
 
 const progress = computed(() => {
-  const steps = { input: 1, confirm: 2, plan: 3 }
+  const steps = { input: 1, recommend: 2, confirm: 3, plan: 4 }
   return steps[view.value] || 0
 })
 
@@ -39,9 +52,9 @@ const progress = computed(() => {
 onMounted(async () => {
   try {
     const appState = await getAppState()
-    params.value = appState.profile || appState.latestPlan?.paramsSnapshot || null
-    schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     const lp = appState.latestPlan
+    params.value = lp?.paramsSnapshot || appState.profile || null
+    schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     plan.value = lp?.plan || []
     planMeta.value = plan.value.length
       ? {
@@ -93,6 +106,19 @@ async function bgSave(profileData, scheduleData, planData, meta) {
   }
 }
 
+async function bgSaveProfileAndSchedule(profileData, scheduleData) {
+  saving.value = true
+  try {
+    await Promise.all([saveProfile(profileData), saveSchedule(scheduleData)])
+    saveError.value = ''
+  } catch (e) {
+    saveError.value = '本地保存失败，数据可能下次无法恢复'
+    console.warn('IndexedDB profile/schedule save failed', e)
+  } finally {
+    saving.value = false
+  }
+}
+
 // ── Plan metadata helper ─────────────────────────────────────────────
 
 function setPlanMeta(planArr) {
@@ -103,15 +129,58 @@ function setPlanMeta(planArr) {
   }
 }
 
+function buildRecommendation(profile) {
+  const dietSuggestion = suggestDietMethod(profile)
+  const deficitSuggestion = calculateDeficitPercent(profile)
+  const tdee = calculateTdee(profile)
+  const targetCalories = calculateTargetCaloriesV2(
+    tdee,
+    deficitSuggestion.recommended,
+    profile.gender,
+  )
+  const scheduleSuggestion = generateScheduleFromProfile(profile, dietSuggestion.method)
+  const macroTargets = calculateMacrosV2(profile, targetCalories, deficitSuggestion.recommended)
+
+  recommendation.value = {
+    dietSuggestion,
+    deficitSuggestion,
+    scheduleSuggestion,
+    macroTargets,
+  }
+}
+
 // ── Handlers ─────────────────────────────────────────────────────────
 
 function handleInputSubmit(nextParams) {
   params.value = nextParams
-  if (editMode.value) {
-    handleSaveAndRegenerate(nextParams)
-  } else {
-    view.value = 'confirm'
+  editMode.value = false
+  buildRecommendation(nextParams)
+  view.value = 'recommend'
+}
+
+function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: acceptedSchedule }) {
+  const tdee = calculateTdee(params.value)
+  const targetCalories = calculateTargetCaloriesV2(tdee, deficitPercent, params.value.gender)
+  const enrichedParams = {
+    ...params.value,
+    dietMethod,
+    deficitPercent,
+    targetCalories,
+    macroTargets: {
+      protein: macros.protein,
+      fat: macros.fat,
+      carbs: macros.carbs,
+    },
   }
+
+  params.value = enrichedParams
+  schedule.value = acceptedSchedule
+
+  lsSave('profile', enrichedParams)
+  lsSave('schedule', acceptedSchedule)
+  bgSaveProfileAndSchedule(enrichedParams, acceptedSchedule)
+
+  view.value = 'confirm'
 }
 
 function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
@@ -142,37 +211,6 @@ function handleEditProfile() {
   view.value = 'input'
 }
 
-function handleSaveAndRegenerate(newParams) {
-  editMode.value = false
-  params.value = newParams
-
-  if (!schedule.value) {
-    lsSave('profile', newParams)
-    lsSave('latestPlan', {
-      plan: plan.value,
-      ...planMeta.value,
-      paramsSnapshot: newParams,
-    })
-    bgSave(newParams, null, plan.value, planMeta.value)
-    view.value = 'confirm'
-    return
-  }
-
-  plan.value = generateMealPlan(newParams, schedule.value)
-  setPlanMeta(plan.value)
-
-  lsSave('profile', newParams)
-  lsSave('latestPlan', {
-    plan: plan.value,
-    ...planMeta.value,
-    scheduleSnapshot: schedule.value,
-    paramsSnapshot: params.value,
-  })
-
-  view.value = 'plan'
-  bgSave(newParams, schedule.value, plan.value, planMeta.value)
-}
-
 function handleCancelEdit() {
   editMode.value = false
   view.value = 'plan'
@@ -188,7 +226,12 @@ async function handleRegeneratePlan() {
   }
   if (!sched) {
     const defaultTimes = generateSchedule(4)
-    sched = { mealCount: 4, times: defaultTimes }
+    sched = {
+      mealCount: 4,
+      mealNames: ['早餐', '午餐', '下午加餐', '晚餐'],
+      times: defaultTimes,
+      split: [0.28, 0.38, 0.1, 0.24],
+    }
   }
 
   params.value = prof
@@ -217,6 +260,7 @@ async function handleClearData() {
   schedule.value = null
   plan.value = []
   editMode.value = false
+  recommendation.value = null
   planMeta.value = null
   saveError.value = ''
   saving.value = false
@@ -253,10 +297,21 @@ async function handleClearData() {
         v-else-if="view === 'confirm'"
         key="confirm"
         :params="params"
-        @back="view = 'input'"
+        :initial-schedule="schedule"
+        @back="view = 'recommend'"
         @confirm="handleConfirm"
       />
-      <section v-else key="plan" class="result-stack">
+      <RecommendView
+        v-else-if="view === 'recommend' && recommendation"
+        key="recommend"
+        :profile="params"
+        :diet-suggestion="recommendation.dietSuggestion"
+        :deficit-suggestion="recommendation.deficitSuggestion"
+        :schedule-suggestion="recommendation.scheduleSuggestion"
+        :macro-targets="recommendation.macroTargets"
+        @accept="handleRecommendAccept"
+      />
+      <section v-else-if="view === 'plan'" key="plan" class="result-stack">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
         <PlanCalendar
           :plan="plan"

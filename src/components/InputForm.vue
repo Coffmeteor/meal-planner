@@ -23,6 +23,13 @@ const form = reactive({
   targetWeight: 56,
   activity: 'light',
   days: 7,
+  wakeTime: '07:00',
+  sleepTime: '23:00',
+  breakfastHabit: 'always',
+  dietScenario: 'mixed',
+  exerciseFreq: 1,
+  hasStrength: false,
+  hasCardio: false,
 })
 
 watch(
@@ -40,6 +47,13 @@ watch(
       targetWeight: initialData.targetWeight ?? form.targetWeight,
       activity: initialData.activity ?? form.activity,
       days: initialData.days ?? form.days,
+      wakeTime: initialData.wakeTime ?? '07:00',
+      sleepTime: initialData.sleepTime ?? '23:00',
+      breakfastHabit: initialData.breakfastHabit ?? 'always',
+      dietScenario: initialData.dietScenario ?? 'mixed',
+      exerciseFreq: initialData.exerciseFreq ?? 1,
+      hasStrength: initialData.hasStrength ?? false,
+      hasCardio: initialData.hasCardio ?? false,
     })
   },
   { immediate: true },
@@ -53,6 +67,13 @@ function submitForm() {
     weight: Number(form.weight),
     targetWeight: Number(form.targetWeight),
     days: Number(form.days),
+    wakeTime: form.wakeTime,
+    sleepTime: form.sleepTime,
+    breakfastHabit: form.breakfastHabit,
+    dietScenario: form.dietScenario,
+    exerciseFreq: Number(form.exerciseFreq),
+    hasStrength: Boolean(form.hasStrength),
+    hasCardio: Boolean(form.hasCardio),
   })
 }
 </script>
@@ -127,10 +148,104 @@ function submitForm() {
       </div>
     </div>
 
+    <div class="form-section">
+      <div class="section-title compact">
+        <p>作息习惯</p>
+        <h2>起床与早餐</h2>
+      </div>
+      <div class="input-grid">
+        <label class="field-card">
+          <span>起床时间</span>
+          <input v-model="form.wakeTime" class="time-input" type="time" />
+        </label>
+        <label class="field-card">
+          <span>睡觉时间</span>
+          <input v-model="form.sleepTime" class="time-input" type="time" />
+        </label>
+      </div>
+      <div class="field-group">
+        <span class="field-label">早餐习惯</span>
+        <div class="segmented three-wide">
+          <button
+            type="button"
+            :class="{ active: form.breakfastHabit === 'always' }"
+            @click="form.breakfastHabit = 'always'"
+          >
+            每天都吃
+          </button>
+          <button
+            type="button"
+            :class="{ active: form.breakfastHabit === 'sometimes' }"
+            @click="form.breakfastHabit = 'sometimes'"
+          >
+            偶尔不吃
+          </button>
+          <button
+            type="button"
+            :class="{ active: form.breakfastHabit === 'skip' }"
+            @click="form.breakfastHabit = 'skip'"
+          >
+            基本不吃
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title compact">
+        <p>日常饮食</p>
+        <h2>主要用餐场景</h2>
+      </div>
+      <label class="field-group">
+        <span class="field-label">饮食场景</span>
+        <select v-model="form.dietScenario">
+          <option value="home">自炊</option>
+          <option value="takeout">外卖</option>
+          <option value="canteen">食堂</option>
+          <option value="convenience">便利店</option>
+          <option value="mixed">混合</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title compact">
+        <p>运动情况</p>
+        <h2>频率与类型</h2>
+      </div>
+      <div class="field-group">
+        <span class="field-label">每周运动</span>
+        <div class="segmented">
+          <button
+            v-for="item in [
+              { label: '0', value: 0 },
+              { label: '1-2', value: 1 },
+              { label: '3-4', value: 3 },
+              { label: '5+', value: 5 },
+            ]"
+            :key="item.value"
+            type="button"
+            :class="{ active: form.exerciseFreq === item.value }"
+            @click="form.exerciseFreq = item.value"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </div>
+      <label class="toggle-row">
+        <span>包含力量训练</span>
+        <input v-model="form.hasStrength" type="checkbox" />
+      </label>
+      <label class="toggle-row">
+        <span>包含有氧运动</span>
+        <input v-model="form.hasCardio" type="checkbox" />
+      </label>
+    </div>
+
     <div v-if="editMode" class="action-row">
       <button type="button" class="ghost-action" @click="emit('cancel')">放弃修改</button>
-      <button class="primary-action" type="submit">保存并重新生成计划</button>
+      <button class="primary-action" type="submit">生成推荐方案</button>
     </div>
-    <button v-else class="primary-action" type="submit">生成作息建议</button>
+    <button v-else class="primary-action" type="submit">生成推荐方案</button>
   </form>
 </template>

@@ -26,9 +26,39 @@ function normalizeLatestPlan(raw) {
       plan: raw.plan,
       startDate: raw.startDate ?? raw.plan[0]?.date ?? null,
       generatedAt: raw.generatedAt ?? null,
+      scheduleSnapshot: raw.scheduleSnapshot ?? null,
+      paramsSnapshot: normalizeProfile(raw.paramsSnapshot),
     }
   }
   return null
+}
+
+export function normalizeProfile(raw) {
+  if (!raw) return null
+  const normalized = {
+    gender: raw.gender ?? 'female',
+    age: raw.age ?? 28,
+    height: raw.height ?? 165,
+    weight: raw.weight ?? 62,
+    targetWeight: raw.targetWeight ?? 56,
+    activity: raw.activity ?? 'light',
+    days: raw.days ?? 7,
+    wakeTime: raw.wakeTime ?? '07:00',
+    sleepTime: raw.sleepTime ?? '23:00',
+    breakfastHabit: raw.breakfastHabit ?? 'always',
+    dietScenario: raw.dietScenario ?? 'mixed',
+    exerciseFreq: raw.exerciseFreq ?? 1,
+    hasStrength: raw.hasStrength ?? false,
+    hasCardio: raw.hasCardio ?? false,
+  }
+
+  for (const key of ['dietMethod', 'deficitPercent', 'targetCalories', 'macroTargets']) {
+    if (raw[key] !== undefined) {
+      normalized[key] = raw[key]
+    }
+  }
+
+  return normalized
 }
 
 // ── Dual storage helpers ────────────────────────────────────────────
@@ -90,7 +120,7 @@ async function dualClear() {
 // ── Public API ────────────────────────────────────────────────────────
 
 export function loadProfile() {
-  return dualGet(KEYS.profile)
+  return dualGet(KEYS.profile).then(normalizeProfile)
 }
 
 export function loadSchedule() {
@@ -142,7 +172,16 @@ export async function getAppState() {
     const profile = await loadProfile()
     const schedule = await loadSchedule()
     const latestPlan = await loadLatestPlan()
-    return { profile, schedule, latestPlan }
+    return {
+      profile,
+      schedule,
+      latestPlan: latestPlan
+        ? {
+            ...latestPlan,
+            paramsSnapshot: normalizeProfile(latestPlan.paramsSnapshot),
+          }
+        : null,
+    }
   } catch (error) {
     console.warn('Failed to load app state', error)
     return { profile: null, schedule: null, latestPlan: null }

@@ -1,7 +1,13 @@
-import { calculateDailyTargets, calculateMacros } from './calc.js'
+import {
+  calculateDailyTargets,
+  calculateMacros,
+  deriveTimeAfterWake,
+  deriveTimeBeforeSleep,
+} from './calc.js'
 import { foods } from './foods.js'
 
 const mealNameMap = {
+  2: ['午餐', '晚餐'],
   3: ['早餐', '午餐', '晚餐'],
   4: ['早餐', '午餐', '下午加餐', '晚餐'],
   5: ['早餐', '上午加餐', '午餐', '下午加餐', '晚餐'],
@@ -18,6 +24,7 @@ const mealProfiles = [
 ]
 
 const splitMap = {
+  2: [0.5, 0.5],
   3: [0.3, 0.4, 0.3],
   4: [0.28, 0.38, 0.1, 0.24],
   5: [0.24, 0.1, 0.32, 0.1, 0.24],
@@ -26,6 +33,7 @@ const splitMap = {
 
 export function generateSchedule(mealCount = 4) {
   const schedules = {
+    2: ['12:30', '18:30'],
     3: ['08:00', '12:30', '18:30'],
     4: ['08:00', '12:30', '16:00', '18:30'],
     5: ['08:00', '10:30', '12:30', '16:00', '18:30'],
@@ -35,7 +43,70 @@ export function generateSchedule(mealCount = 4) {
   return schedules[mealCount] || schedules[4]
 }
 
-function getMealMeta(mealCount, index) {
+export function generateScheduleFromProfile(profile, dietMethod) {
+  const wakeTime = profile?.wakeTime ?? '07:00'
+  const sleepTime = profile?.sleepTime ?? '23:00'
+
+  if (dietMethod === 'threeMealsPlusSnack') {
+    return {
+      mealCount: 4,
+      mealNames: ['早餐', '午餐', '下午加餐', '晚餐'],
+      times: [
+        deriveTimeAfterWake(wakeTime, 0.5),
+        '12:00',
+        '15:30',
+        deriveTimeBeforeSleep(sleepTime, 3),
+      ],
+      split: [0.24, 0.36, 0.1, 0.3],
+    }
+  }
+
+  if (dietMethod === '14:10') {
+    return {
+      mealCount: 3,
+      mealNames: ['午餐', '下午加餐', '晚餐'],
+      times: ['12:00', '15:30', deriveTimeBeforeSleep(sleepTime, 3)],
+      split: [0.45, 0.1, 0.45],
+    }
+  }
+
+  if (dietMethod === '16:8') {
+    return {
+      mealCount: 2,
+      mealNames: ['午餐', '晚餐'],
+      times: ['12:30', deriveTimeBeforeSleep(sleepTime, 2.5)],
+      split: [0.5, 0.5],
+    }
+  }
+
+  return {
+    mealCount: 3,
+    mealNames: ['早餐', '午餐', '晚餐'],
+    times: [
+      deriveTimeAfterWake(wakeTime, 0.5),
+      '12:30',
+      deriveTimeBeforeSleep(sleepTime, 3.5),
+    ],
+    split: [0.3, 0.4, 0.3],
+  }
+}
+
+function getMealMetaByName(name) {
+  if (name?.includes('加餐')) return { category: 'snack', type: 'snack' }
+  if (name?.includes('午餐')) return { category: 'lunch', type: 'main' }
+  if (name?.includes('晚餐')) return { category: 'dinner', type: 'main' }
+  if (name?.includes('早餐')) return { category: 'breakfast', type: 'main' }
+  return null
+}
+
+function getMealMeta(mealCount, index, mealNames = []) {
+  const customMeta = getMealMetaByName(mealNames[index])
+  if (customMeta) return customMeta
+
+  if (mealCount === 2) {
+    return [mealProfiles[2], mealProfiles[4]][index]
+  }
+
   if (mealCount === 3) {
     return [mealProfiles[0], mealProfiles[2], mealProfiles[4]][index]
   }
@@ -47,8 +118,8 @@ function getMealMeta(mealCount, index) {
   return mealProfiles[index] || mealProfiles[5]
 }
 
-function getMealName(mealCount, index) {
-  return mealNameMap[mealCount]?.[index] || '轻食'
+function getMealName(mealCount, index, customNames = []) {
+  return customNames[index] || mealNameMap[mealCount]?.[index] || '轻食'
 }
 
 function scaleFood(food, portion) {
@@ -118,8 +189,8 @@ function buildSnackMeal(calorieTarget, offset) {
   return items.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
 
-function createMeal({ time, index, mealCount, calorieTarget, dayIndex }) {
-  const meta = getMealMeta(mealCount, index)
+function createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames }) {
+  const meta = getMealMeta(mealCount, index, mealNames)
   const offset = dayIndex * mealCount + index
   const items =
     meta.type === 'snack'
@@ -129,7 +200,7 @@ function createMeal({ time, index, mealCount, calorieTarget, dayIndex }) {
 
   return {
     time,
-    name: getMealName(mealCount, index),
+    name: getMealName(mealCount, index, mealNames),
     portion: items.map((item) => `${item.name}${item.portion}${item.unit}`).join(' + '),
     calories: totals.calories,
     protein: totals.protein,
@@ -146,10 +217,18 @@ function addDays(date, days) {
 }
 
 export function generateMealPlan(params, schedule = {}) {
-  const dailyTargets = calculateDailyTargets(params)
+  const baseTargets = calculateDailyTargets(params)
+  const calories = Number(params.targetCalories) || baseTargets.calories
+  const dailyTargets = {
+    ...baseTargets,
+    calories,
+    macros: params.macroTargets || calculateMacros(calories),
+  }
   const mealCount = Number(schedule.mealCount) || 4
   const times = schedule.times?.length ? schedule.times : generateSchedule(mealCount)
-  const splits = splitMap[mealCount] || splitMap[4]
+  const splits =
+    schedule.split?.length === times.length ? schedule.split : splitMap[mealCount] || splitMap[4]
+  const mealNames = schedule.mealNames?.length === times.length ? schedule.mealNames : []
   const days = Number(params.days) || 7
   const start = new Date()
 
@@ -162,6 +241,7 @@ export function generateMealPlan(params, schedule = {}) {
         mealCount,
         calorieTarget: dailyTargets.calories * splits[index],
         dayIndex,
+        mealNames,
       }),
     )
     const totals = sumFoods(meals)
@@ -171,7 +251,7 @@ export function generateMealPlan(params, schedule = {}) {
       date: date.toISOString().slice(0, 10),
       targets: {
         calories: dailyTargets.calories,
-        ...calculateMacros(dailyTargets.calories),
+        ...dailyTargets.macros,
       },
       totals,
       meals,
