@@ -23,6 +23,30 @@ async function safeSave(key, value) {
   }
 }
 
+/**
+ * Normalize latestPlan to consistent { plan, startDate, generatedAt } shape.
+ * Handles both old (raw array) and new ({ plan, ... }) formats.
+ * Returns null if no valid plan data.
+ */
+function normalizeLatestPlan(raw) {
+  if (!raw) return null
+  // Old format: latestPlan was stored as a raw array
+  if (Array.isArray(raw)) {
+    return raw.length
+      ? { plan: raw, startDate: raw[0]?.date ?? null, generatedAt: null }
+      : null
+  }
+  // New format: { plan, startDate, generatedAt }
+  if (raw && Array.isArray(raw.plan) && raw.plan.length) {
+    return {
+      plan: raw.plan,
+      startDate: raw.startDate ?? raw.plan[0]?.date ?? null,
+      generatedAt: raw.generatedAt ?? null,
+    }
+  }
+  return null
+}
+
 export function loadProfile() {
   return safeLoad(KEYS.profile)
 }
@@ -32,19 +56,8 @@ export function loadSchedule() {
 }
 
 export async function loadLatestPlan() {
-  const latestPlan = await safeLoad(KEYS.latestPlan)
-
-  if (Array.isArray(latestPlan)) {
-    return latestPlan.length
-      ? {
-          plan: latestPlan,
-          startDate: latestPlan[0]?.date ?? null,
-          generatedAt: null,
-        }
-      : null
-  }
-
-  return latestPlan
+  const raw = await safeLoad(KEYS.latestPlan)
+  return normalizeLatestPlan(raw)
 }
 
 export function saveProfile(profile) {

@@ -6,6 +6,7 @@ import ScheduleConfirm from './components/ScheduleConfirm.vue'
 import {
   clearAllData,
   getAppState,
+  loadLatestPlan,
   saveLatestPlan,
   saveProfile,
   saveSchedule,
@@ -29,15 +30,18 @@ onMounted(async () => {
     const appState = await getAppState()
     params.value = appState.profile
     schedule.value = appState.schedule
-    plan.value = appState.latestPlan?.plan || []
+    const lp = appState.latestPlan
+    plan.value = lp?.plan || []
     planMeta.value = plan.value.length
       ? {
-          startDate: appState.latestPlan?.startDate ?? plan.value[0]?.date ?? null,
-          generatedAt: appState.latestPlan?.generatedAt ?? null,
+          startDate: lp?.startDate ?? plan.value[0]?.date ?? null,
+          generatedAt: lp?.generatedAt ?? null,
         }
       : null
 
-    if (params.value && plan.value.length) {
+    // If a valid plan exists, go directly to PlanCalendar.
+    // Profile is NOT required — plan data is the primary state.
+    if (plan.value.length) {
       view.value = 'plan'
     } else {
       view.value = 'input'
@@ -49,7 +53,6 @@ onMounted(async () => {
 
 function handleInputSubmit(nextParams) {
   params.value = nextParams
-  void saveProfile(nextParams)
   if (editMode.value) {
     handleSaveAndRegenerate(nextParams)
   } else {
@@ -57,7 +60,7 @@ function handleInputSubmit(nextParams) {
   }
 }
 
-function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
+async function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
   params.value = confirmedParams
   schedule.value = confirmedSchedule
   plan.value = generateMealPlan(confirmedParams, confirmedSchedule)
@@ -66,9 +69,19 @@ function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule })
     generatedAt: now.toISOString(),
     startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
   }
-  void saveProfile(confirmedParams)
-  void saveSchedule(confirmedSchedule)
-  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
+
+  // Await all saves before switching view, then verify
+  await Promise.all([
+    saveProfile(confirmedParams),
+    saveSchedule(confirmedSchedule),
+    saveLatestPlan({ plan: plan.value, ...planMeta.value }),
+  ])
+
+  const verify = await loadLatestPlan()
+  if (!verify?.plan?.length) {
+    console.warn('Save verification failed — latestPlan not readable after write')
+  }
+
   view.value = 'plan'
 }
 
@@ -77,10 +90,10 @@ function handleEditProfile() {
   view.value = 'input'
 }
 
-function handleSaveAndRegenerate(newParams) {
+async function handleSaveAndRegenerate(newParams) {
   editMode.value = false
   params.value = newParams
-  void saveProfile(newParams)
+  await saveProfile(newParams)
 
   if (!schedule.value) {
     view.value = 'confirm'
@@ -93,7 +106,13 @@ function handleSaveAndRegenerate(newParams) {
     generatedAt: now.toISOString(),
     startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
   }
-  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
+  await saveLatestPlan({ plan: plan.value, ...planMeta.value })
+
+  const verify = await loadLatestPlan()
+  if (!verify?.plan?.length) {
+    console.warn('Save verification failed — latestPlan not readable after write')
+  }
+
   view.value = 'plan'
 }
 
@@ -102,7 +121,7 @@ function handleCancelEdit() {
   view.value = 'plan'
 }
 
-function handleRegeneratePlan() {
+async function handleRegeneratePlan() {
   if (!params.value || !schedule.value) return
   plan.value = generateMealPlan(params.value, schedule.value)
   const now = new Date()
@@ -110,7 +129,13 @@ function handleRegeneratePlan() {
     generatedAt: now.toISOString(),
     startDate: plan.value[0]?.date ?? now.toISOString().slice(0, 10),
   }
-  void saveLatestPlan({ plan: plan.value, ...planMeta.value })
+  await saveLatestPlan({ plan: plan.value, ...planMeta.value })
+
+  const verify = await loadLatestPlan()
+  if (!verify?.plan?.length) {
+    console.warn('Save verification failed — latestPlan not readable after write')
+  }
+
   view.value = 'plan'
 }
 

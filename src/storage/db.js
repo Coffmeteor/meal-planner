@@ -39,7 +39,7 @@ function transaction(storeMode, action) {
   return openDatabase()
     .then(
       (db) =>
-        new Promise((resolve) => {
+        new Promise((resolve, reject) => {
           if (!db) {
             resolve(undefined)
             return
@@ -55,8 +55,16 @@ function transaction(storeMode, action) {
               console.warn('IndexedDB request failed', request.error)
               resolve(undefined)
             }
+            // Wait for transaction complete so data is fully committed to disk
+            // before resolving. iOS Safari may not flush before onsuccess fires.
+            tx.oncomplete = () => {
+              /* already resolved by request.onsuccess */
+            }
+            tx.onerror = () => {
+              console.warn('IndexedDB transaction failed', tx.error)
+            }
           } catch (error) {
-            console.warn('IndexedDB transaction failed', error)
+            console.warn('IndexedDB transaction setup failed', error)
             resolve(undefined)
           }
         }),
