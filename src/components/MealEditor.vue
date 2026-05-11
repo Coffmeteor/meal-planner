@@ -203,8 +203,12 @@ function updatePortion(index, value) {
   const cleaned = String(value).replace(/^0+(?=\d)/, '')
   const num = parseFloat(cleaned)
   if (isNaN(num) || num <= 0) return
-  const portion = roundPortionForFood(food, cleaned)
-  localFoods.value[index] = scaleFood(food, portion)
+  // Keep raw value during typing — no step rounding until blur
+  localFoods.value[index] = scaleFood(food, num)
+}
+
+function focusPortion(e) {
+  e.target.select()
 }
 
 function blurPortion(index, value) {
@@ -213,6 +217,11 @@ function blurPortion(index, value) {
   const num = parseFloat(value)
   if (isNaN(num) || num <= 0 || value === '' || value === undefined || value === null) {
     localFoods.value[index] = scaleFood(food, defaultPortionFor(food))
+    return
+  }
+  const rounded = roundPortionForFood(food, String(num))
+  if (rounded !== Math.round(num)) {
+    localFoods.value[index] = scaleFood(food, Math.max(1, rounded))
   }
 }
 
@@ -313,6 +322,7 @@ function handleSave() {
             :step="isOilOrFat(food) ? 1 : 5"
             :value="food.portion"
             @input="updatePortion(index, $event.target.value)"
+            @focus="focusPortion"
             @blur="blurPortion(index, $event.target.value)"
           >
           <span>g</span>
