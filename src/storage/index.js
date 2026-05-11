@@ -5,6 +5,7 @@ const KEYS = {
   schedule: 'schedule',
   latestPlan: 'latestPlan',
   foodPreferences: 'foodPreferences',
+  weightLogs: 'weightLogs',
 }
 
 // localStorage fallback prefix — used when IndexedDB is unavailable or fails.
@@ -160,6 +161,48 @@ export async function saveLatestPlan(latestPlan) {
 
 export async function deleteLatestPlan() {
   return dualDelete(KEYS.latestPlan)
+}
+
+export async function loadWeightLogs() {
+  const raw = await dualGet(KEYS.weightLogs)
+  if (!Array.isArray(raw)) return []
+  return raw
+}
+
+export async function saveWeightLog(entry) {
+  const logs = await loadWeightLogs()
+  const existingIndex = logs.findIndex((log) => log.date === entry.date)
+  const now = new Date().toISOString()
+
+  if (existingIndex >= 0) {
+    logs[existingIndex] = {
+      ...logs[existingIndex],
+      ...entry,
+      updatedAt: now,
+    }
+  } else {
+    logs.push({
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      date: entry.date,
+      weight: entry.weight,
+      hungerLevel: entry.hungerLevel ?? null,
+      adherenceLevel: entry.adherenceLevel ?? null,
+      note: entry.note ?? '',
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  logs.sort((a, b) => b.date.localeCompare(a.date))
+  await dualSet(KEYS.weightLogs, logs)
+  return logs
+}
+
+export async function deleteWeightLog(logId) {
+  const logs = await loadWeightLogs()
+  const filtered = logs.filter((log) => log.id !== logId)
+  await dualSet(KEYS.weightLogs, filtered)
+  return filtered
 }
 
 export async function clearAllData() {

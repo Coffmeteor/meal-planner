@@ -5,9 +5,11 @@ import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
 import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
+import WeightProgress from './components/WeightProgress.vue'
 import {
   clearAllData,
   getAppState,
+  loadWeightLogs,
   saveLatestPlan,
   saveProfile,
   saveSchedule,
@@ -34,10 +36,11 @@ import {
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
 
-const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods'
+const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods' | 'progress'
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
+const weightLogs = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
 const foodPrefs = ref(null)
@@ -61,13 +64,15 @@ const progress = computed(() => {
 
 onMounted(async () => {
   try {
-    const [appState, loadedFoodPrefs] = await Promise.all([
+    const [appState, loadedFoodPrefs, loadedWeightLogs] = await Promise.all([
       getAppState(),
       loadFoodPreferences(),
+      loadWeightLogs(),
     ])
     const lp = appState.latestPlan
     const rawLatestPlan = readLatestPlanFromLocalStorage()
     foodPrefs.value = loadedFoodPrefs
+    weightLogs.value = loadedWeightLogs
     params.value = lp?.paramsSnapshot || appState.profile || null
     schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     plan.value = lp?.plan || []
@@ -404,10 +409,11 @@ async function handleClearData() {
   try {
     await clearAllData()
   } catch (e) { /* */ }
-  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences']) lsRemove(k)
+  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences', 'weightLogs']) lsRemove(k)
   params.value = null
   schedule.value = null
   plan.value = []
+  weightLogs.value = []
   foodPrefs.value = emptyPreferences()
   foodSetupMode.value = false
   editMode.value = false
@@ -426,6 +432,15 @@ function resolveAvailableFoods() {
 function handleManageFoods() {
   foodSetupMode.value = false
   view.value = 'foods'
+}
+
+function handleViewProgress() {
+  view.value = 'progress'
+}
+
+function handleWeightLogsSave(updatedLogs) {
+  weightLogs.value = updatedLogs
+  view.value = 'plan'
 }
 
 async function handleFoodsSave(updatedPrefs) {
@@ -469,6 +484,7 @@ function handleFoodsClose() {
         <h1>减脂餐计划</h1>
       </div>
       <div v-if="view === 'foods'" class="progress-pill">食材</div>
+      <div v-else-if="view === 'progress'" class="progress-pill">进度</div>
       <div v-else-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
       <div v-else class="progress-pill">餐单</div>
     </header>
@@ -514,11 +530,21 @@ function handleFoodsClose() {
           @refresh-recipe="handleRefreshRecipe"
           @clear-data="handleClearData"
           @manage-foods="handleManageFoods"
+          @view-progress="handleViewProgress"
           @lock-meal="handleLockMeal"
           @unlock-meal="handleUnlockMeal"
           @replace-meal="handleReplaceMeal"
         />
       </section>
+      <WeightProgress
+        v-else-if="view === 'progress'"
+        key="progress"
+        :weight-logs="weightLogs"
+        :profile="params"
+        :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
+        @save="handleWeightLogsSave"
+        @close="view = 'plan'"
+      />
       <FoodPreferences
         v-else-if="view === 'foods'"
         key="foods"

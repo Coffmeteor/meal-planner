@@ -22,6 +22,7 @@ const emit = defineEmits([
   'regenerate',
   'clearData',
   'manageFoods',
+  'viewProgress',
   'refreshRecipe',
   'lockMeal',
   'unlockMeal',
@@ -247,6 +248,9 @@ function handleReplace(mealIndex) {
     </button>
     <button type="button" class="ghost-action full-width" @click="emit('manageFoods')">
       调整食材
+    </button>
+    <button type="button" class="ghost-action full-width" @click="emit('viewProgress')">
+      进度记录
     </button>
     <button type="button" class="ghost-action full-width" @click="emit('refreshRecipe')">
       刷新食谱
