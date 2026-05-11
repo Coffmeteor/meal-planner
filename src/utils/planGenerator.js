@@ -15,11 +15,11 @@ import {
 } from './scheduleUtils.js'
 
 const mealNameMap = {
-  2: ['午餐', '晚餐'],
-  3: ['早餐', '午餐', '晚餐'],
-  4: ['早餐', '午餐', '下午加餐', '晚餐'],
-  5: ['早餐', '上午加餐', '午餐', '下午加餐', '晚餐'],
-  6: ['早餐', '上午加餐', '午餐', '下午加餐', '晚餐', '晚间轻食'],
+  2: ['第一餐', '第二餐'],
+  3: ['第一餐', '第二餐', '第三餐'],
+  4: ['第一餐', '第二餐', '加餐1', '第三餐'],
+  5: ['第一餐', '加餐1', '第二餐', '加餐2', '第三餐'],
+  6: ['第一餐', '加餐1', '第二餐', '加餐2', '第三餐', '加餐3'],
 }
 
 const mealProfiles = [
@@ -66,7 +66,7 @@ export function generateScheduleFromProfile(profile, dietMethod, existingEatingW
   if (dietMethod === 'threeMealsPlusSnack') {
     return {
       mealCount: 4,
-      mealNames: ['早餐', '午餐', '下午加餐', '晚餐'],
+      mealNames: ['第一餐', '第二餐', '加餐1', '第三餐'],
       times: [
         deriveTimeAfterWake(wakeTime, 0.5),
         '12:00',
@@ -81,7 +81,7 @@ export function generateScheduleFromProfile(profile, dietMethod, existingEatingW
   if (dietMethod === '14:10') {
     return autoDistributeMeals({
       mealCount: 3,
-      mealNames: ['午餐', '下午加餐', '晚餐'],
+      mealNames: ['第一餐', '加餐1', '第二餐'],
       times: ['12:00', '15:30', deriveTimeBeforeSleep(sleepTime, 3)],
       split: [0.45, 0.1, 0.45],
       eatingWindow,
@@ -91,7 +91,7 @@ export function generateScheduleFromProfile(profile, dietMethod, existingEatingW
   if (dietMethod === '16:8') {
     return autoDistributeMeals({
       mealCount: 2,
-      mealNames: ['午餐', '晚餐'],
+      mealNames: ['第一餐', '第二餐'],
       times: ['12:30', deriveTimeBeforeSleep(sleepTime, 2.5)],
       split: [0.5, 0.5],
       eatingWindow,
@@ -100,7 +100,7 @@ export function generateScheduleFromProfile(profile, dietMethod, existingEatingW
 
   return {
     mealCount: 3,
-    mealNames: ['早餐', '午餐', '晚餐'],
+    mealNames: ['第一餐', '第二餐', '第三餐'],
     times: [
       deriveTimeAfterWake(wakeTime, 0.5),
       '12:30',
@@ -247,7 +247,7 @@ function buildMainMeal(category, calorieTarget, offset, foodPool, options = {}) 
     (total, food) => total + food.calories * (food.defaultPortion / 100),
     0,
   )
-  const scale = Math.min(1.7, Math.max(0.75, calorieTarget / Math.max(baseCalories, 1)))
+  const scale = Math.min(2.5, Math.max(0.75, calorieTarget / Math.max(baseCalories, 1)))
 
   return base.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
@@ -270,7 +270,7 @@ function buildSnackMeal(calorieTarget, offset, foodPool, options = {}) {
     (total, food) => total + food.calories * (food.defaultPortion / 100),
     0,
   )
-  const scale = Math.min(1.2, Math.max(0.6, calorieTarget / Math.max(baseCalories, 1)))
+  const scale = Math.min(2.0, Math.max(0.6, calorieTarget / Math.max(baseCalories, 1)))
 
   return items.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
@@ -447,7 +447,7 @@ function createMealWithTemplate({
     (total, food) => total + food.calories * (food.defaultPortion / 100),
     0,
   )
-  const scale = Math.min(1.7, Math.max(0.75, calorieTarget / Math.max(baseCalories, 1)))
+  const scale = Math.min(2.5, Math.max(0.75, calorieTarget / Math.max(baseCalories, 1)))
   const scaledItems = items.map((food) =>
     scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5),
   )
@@ -564,6 +564,11 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null, e
       }),
     )
     const totals = sumFoods(meals)
+    const deviation = totals.calories - dailyTargets.calories
+    const calibratedMeals = Math.abs(deviation) > 80
+      ? calibrateDayMeals(meals, deviation, dailyTargets.calories, foodPool, dayIndex, mealNames, mealCount)
+      : meals
+    const calibratedTotals = calibratedMeals !== meals ? sumFoods(calibratedMeals) : totals
 
     return {
       day: dayIndex + 1,
@@ -572,8 +577,8 @@ export function generateMealPlan(params, schedule = {}, availableFoods = null, e
         calories: dailyTargets.calories,
         ...dailyTargets.macros,
       },
-      totals,
-      meals,
+      totals: calibratedTotals,
+      meals: calibratedMeals,
     }
   })
 }
@@ -688,7 +693,7 @@ export function regenerateDay(
   })
 
   const now = new Date().toISOString()
-  return {
+  const result = {
     ...currentDay,
     meals,
     totals: sumFoods(meals),
@@ -696,6 +701,51 @@ export function regenerateDay(
     editSource: options.editSource || currentDay.editSource,
     updatedAt: now,
   }
+  const deviation = result.totals.calories - dailyCalories
+  if (Math.abs(deviation) > 80) {
+    const calibrated = calibrateDayMeals(meals, deviation, dailyCalories, foodPool, baseDayIndex, mealNames, mealCount)
+    if (calibrated !== meals) {
+      result.meals = calibrated
+      result.totals = sumFoods(calibrated)
+    }
+  }
+  return result
+}
+
+function calibrateDayMeals(meals, deviation, dailyTargetCalories, foodPool, dayIndex, mealNames, mealCount) {
+  const adjustable = meals
+    .map((m, i) => ({ meal: m, idx: i }))
+    .filter(({ meal }) => !meal.locked && !meal.edited)
+  if (!adjustable.length) return meals
+
+  const adjTotal = adjustable.reduce((s, { meal }) => s + meal.calories, 0)
+  if (adjTotal <= 0) return meals
+
+  const targetTotal = Math.max(1, dailyTargetCalories)
+  const currentTotal = meals.reduce((s, m) => s + m.calories, 0)
+  const ratio = targetTotal / currentTotal
+
+  const newMeals = meals.map((meal) => {
+    if (meal.locked || meal.edited) return meal
+    if (!meal.foods?.length) return meal
+    const scaledFoods = meal.foods.map((f) =>
+      scaleFood(f, Math.round((f.portion * ratio) / 5) * 5),
+    )
+    const totals = sumFoods(scaledFoods)
+    return {
+      ...meal,
+      foods: scaledFoods,
+      items: scaledFoods,
+      calories: totals.calories,
+      protein: totals.protein,
+      carbs: totals.carbs,
+      fat: totals.fat,
+      portion: scaledFoods.map((f) => `${f.name}${f.portion}${f.unit}`).join(' + '),
+      warning: Math.abs(totals.calories - meal.calories) > 50 ? 'adjusted' : undefined,
+    }
+  })
+
+  return newMeals
 }
 
 export { splitMap }

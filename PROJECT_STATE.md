@@ -2,7 +2,15 @@
 
 ## Current Version
 
-**v0.2.4** — Patch: recommendation back navigation, ingredient search, scroll reset
+**v0.2.5** — Patch: calorie calibration, unified meal naming
+
+## Patch (v0.2.5)
+
+- Raised meal scale caps: main meal 1.7x → 2.5x, snack 1.2x → 2.0x, enabling adequate calorie coverage for 2‑meal (16:8) and 3‑meal (14:10) schedules.
+- Added `calibrateDayMeals()`: adjusts non‑locked, non‑edited meals proportionally so each day's total stays within ±80 kcal of target.
+- Unified meal naming across all schemes: 第一餐 / 第二餐 / 第三餐 / 加餐1 / 加餐2.
+- Updated ScheduleConfirm meal name maps to match.
+- Bumped APP_VERSION to v0.2.5.
 
 ## Patch (v0.2.4)
 
