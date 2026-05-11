@@ -11,6 +11,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  mode: {
+    type: String,
+    default: 'manage',
+  },
 })
 
 const emit = defineEmits(['save', 'close'])
@@ -181,6 +185,14 @@ function savePreferences() {
     updatedAt: localPrefs.updatedAt,
   })
 }
+
+function skipAll() {
+  emit('save', {
+    selectedFoodIds: [],
+    customFoods: [],
+    updatedAt: new Date().toISOString(),
+  })
+}
 </script>
 
 <template>
@@ -188,7 +200,7 @@ function savePreferences() {
     <div class="section-title compact food-title">
       <div>
         <p>个人可用食材池</p>
-        <h2>我的食材</h2>
+        <h2>{{ props.mode === 'setup' ? '选择可用食材' : '我的食材' }}</h2>
       </div>
       <button type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
@@ -281,7 +293,16 @@ function savePreferences() {
       </div>
     </div>
 
-    <button type="button" class="primary-action" @click="savePreferences">保存并返回</button>
+    <div class="food-actions">
+      <template v-if="props.mode === 'setup'">
+        <button type="button" class="ghost-action" @click="skipAll">跳过，使用全部食材</button>
+        <button type="button" class="primary-action" @click="savePreferences">继续生成餐单</button>
+      </template>
+      <template v-else>
+        <button type="button" class="ghost-action" @click="emit('close')">返回</button>
+        <button type="button" class="primary-action" @click="savePreferences">保存并返回</button>
+      </template>
+    </div>
   </section>
 </template>
 
@@ -381,7 +402,8 @@ function savePreferences() {
 
 .custom-section,
 .custom-form,
-.custom-list {
+.custom-list,
+.food-actions {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;

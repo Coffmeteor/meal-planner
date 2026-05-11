@@ -27,7 +27,6 @@ import {
 } from './utils/foodPreferences.js'
 import {
   generateMealPlan,
-  generateSchedule,
   generateScheduleFromProfile,
 } from './utils/planGenerator.js'
 
@@ -41,6 +40,7 @@ const plan = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
 const foodPrefs = ref(null)
+const foodSetupMode = ref(false)
 const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
@@ -167,6 +167,31 @@ function setPlanMeta(planArr, recommendationFields = {}) {
   }
 }
 
+function formatDateYmd(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function rebasePlanDates(planArr, startDate) {
+  if (!startDate) return planArr
+  const [year, month, day] = String(startDate).split('-').map(Number)
+  if (!year || !month || !day) return planArr
+
+  const base = new Date(year, month - 1, day)
+  if (Number.isNaN(base.getTime())) return planArr
+
+  return planArr.map((dayPlan, index) => {
+    const date = new Date(base)
+    date.setDate(base.getDate() + index)
+    return {
+      ...dayPlan,
+      date: formatDateYmd(date),
+    }
+  })
+}
+
 function buildRecommendation(profile) {
   const dietSuggestion = suggestDietMethod(profile)
   const deficitSuggestion = calculateDeficitPercent(profile)
@@ -225,24 +250,13 @@ function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: a
 function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
   params.value = confirmedParams
   schedule.value = confirmedSchedule
-  plan.value = generateMealPlan(confirmedParams, confirmedSchedule, resolveAvailableFoods())
-  setPlanMeta(plan.value)
+  foodSetupMode.value = true
 
-  // 1. localStorage sync — instant, never blocks UI
   lsSave('profile', confirmedParams)
   lsSave('schedule', confirmedSchedule)
-  lsSave('latestPlan', {
-    plan: plan.value,
-    ...planMeta.value,
-    scheduleSnapshot: schedule.value,
-    paramsSnapshot: params.value,
-  })
+  bgSaveProfileAndSchedule(confirmedParams, confirmedSchedule)
 
-  // 2. Switch view immediately
-  view.value = 'plan'
-
-  // 3. IndexedDB in background — fire and forget
-  bgSave(confirmedParams, confirmedSchedule, plan.value, planMeta.value)
+  view.value = 'foods'
 }
 
 function handleEditProfile() {
@@ -255,46 +269,39 @@ function handleCancelEdit() {
   view.value = 'plan'
 }
 
-async function handleRegeneratePlan() {
-  let sched = schedule.value || planMeta.value?.scheduleSnapshot
-  const prof = params.value || planMeta.value?.paramsSnapshot
-
-  if (!prof) {
-    saveError.value = '缺少个人资料，请先填写资料'
+function handleRefreshRecipe() {
+  if (!params.value || !schedule.value) {
+    saveError.value = '缺少计划参数，无法刷新'
     return
   }
-  if (!sched) {
-    const defaultTimes = generateSchedule(4)
-    sched = {
-      mealCount: 4,
-      mealNames: ['早餐', '午餐', '下午加餐', '晚餐'],
-      times: defaultTimes,
-      split: [0.28, 0.38, 0.1, 0.24],
-    }
-  }
 
-  params.value = prof
-  schedule.value = sched
-  plan.value = generateMealPlan(prof, sched, resolveAvailableFoods())
+  const existingMeta = planMeta.value || {}
+  const oldStartDate = existingMeta.startDate
+  plan.value = rebasePlanDates(
+    generateMealPlan(params.value, schedule.value, resolveAvailableFoods()),
+    oldStartDate,
+  )
+
   const recFields = {
-    dietMethod: prof.dietMethod ?? planMeta.value?.dietMethod ?? null,
-    deficitPercent: prof.deficitPercent ?? planMeta.value?.deficitPercent ?? null,
-    targetCalories: prof.targetCalories ?? planMeta.value?.targetCalories ?? null,
-    macros: prof.macroTargets ?? planMeta.value?.macros ?? null,
-    recommendationReason: prof.recommendationReason ?? planMeta.value?.recommendationReason ?? null,
+    dietMethod: existingMeta.dietMethod ?? params.value?.dietMethod ?? null,
+    deficitPercent: existingMeta.deficitPercent ?? params.value?.deficitPercent ?? null,
+    targetCalories: existingMeta.targetCalories ?? params.value?.targetCalories ?? null,
+    macros: existingMeta.macros ?? params.value?.macroTargets ?? null,
+    recommendationReason:
+      existingMeta.recommendationReason
+      ?? params.value?.recommendationReason
+      ?? null,
   }
   setPlanMeta(plan.value, recFields)
 
   lsSave('latestPlan', {
     plan: plan.value,
     ...planMeta.value,
-    scheduleSnapshot: sched,
-    paramsSnapshot: prof,
+    scheduleSnapshot: schedule.value,
+    paramsSnapshot: params.value,
   })
-
-  view.value = 'plan'
-  bgSave(prof, sched, plan.value, planMeta.value)
-  showToast('✅ 已重新生成减脂计划')
+  bgSave(params.value, schedule.value, plan.value, planMeta.value)
+  showToast('✅ 已刷新食谱')
 }
 
 async function handleClearData() {
@@ -306,6 +313,7 @@ async function handleClearData() {
   schedule.value = null
   plan.value = []
   foodPrefs.value = emptyPreferences()
+  foodSetupMode.value = false
   editMode.value = false
   recommendation.value = null
   planMeta.value = null
@@ -320,12 +328,45 @@ function resolveAvailableFoods() {
 }
 
 function handleManageFoods() {
+  foodSetupMode.value = false
   view.value = 'foods'
 }
 
 async function handleFoodsSave(updatedPrefs) {
   foodPrefs.value = await saveFoodPreferences(updatedPrefs)
+
+  if (foodSetupMode.value) {
+    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods())
+    const recFields = {
+      dietMethod: params.value?.dietMethod ?? null,
+      deficitPercent: params.value?.deficitPercent ?? null,
+      targetCalories: params.value?.targetCalories ?? null,
+      macros: params.value?.macroTargets ?? null,
+      recommendationReason: params.value?.recommendationReason ?? null,
+    }
+    setPlanMeta(plan.value, recFields)
+    lsSave('latestPlan', {
+      plan: plan.value,
+      ...planMeta.value,
+      scheduleSnapshot: schedule.value,
+      paramsSnapshot: params.value,
+    })
+    bgSave(params.value, schedule.value, plan.value, planMeta.value)
+    foodSetupMode.value = false
+    view.value = 'plan'
+    return
+  }
+
   view.value = plan.value.length ? 'plan' : 'input'
+}
+
+function handleFoodsClose() {
+  if (foodSetupMode.value) {
+    foodSetupMode.value = false
+    view.value = 'confirm'
+  } else {
+    view.value = plan.value.length ? 'plan' : 'input'
+  }
 }
 </script>
 
@@ -380,7 +421,7 @@ async function handleFoodsSave(updatedPrefs) {
           :start-date="planMeta?.startDate"
           :plan-meta="planMeta"
           @edit-profile="handleEditProfile"
-          @regenerate="handleRegeneratePlan"
+          @refresh-recipe="handleRefreshRecipe"
           @clear-data="handleClearData"
           @manage-foods="handleManageFoods"
         />
@@ -389,8 +430,9 @@ async function handleFoodsSave(updatedPrefs) {
         v-else-if="view === 'foods'"
         key="foods"
         :food-preferences="foodPrefs || defaultFoodPreferences"
+        :mode="foodSetupMode ? 'setup' : 'manage'"
         @save="handleFoodsSave"
-        @close="view = plan.length ? 'plan' : 'input'"
+        @close="handleFoodsClose"
       />
     </Transition>
   </main>
