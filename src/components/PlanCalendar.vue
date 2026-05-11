@@ -312,14 +312,14 @@ function handleEditDayFood() {
           class="meal-card"
           :class="{ 'meal-locked': meal.locked }"
         >
-          <div class="meal-head">
-            <div>
-              <span>{{ formatTime(meal.time) }}</span>
-              <strong>
-                {{ meal.name }}
+            <div class="meal-head">
+              <div>
+                <span>{{ formatTime(meal.time) }}
+                  <small class="meal-label">{{ meal.label || meal.name }}</small>
+                </span>
+                <strong v-if="meal.label" class="meal-dish-name">{{ meal.name }}</strong>
                 <small v-if="meal.edited" class="edited-badge">已编辑</small>
-              </strong>
-            </div>
+              </div>
             <em>{{ formatCalories(meal.calories) }}</em>
           </div>
           <ul v-if="mealFoods(meal).length" class="meal-food-list">

@@ -456,6 +456,7 @@ function createMealWithTemplate({
   return normalizeMealDisplay({
     time,
     name: fillNamePattern(template.namePattern, slotFoods),
+    label: getMealName(mealCount, index, mealNames),
     portion: scaledItems.map((item) => `${item.name}${item.portion}${item.unit}`).join(' + '),
     calories: totals.calories,
     protein: totals.protein,
@@ -728,9 +729,11 @@ function calibrateDayMeals(meals, deviation, dailyTargetCalories, foodPool, dayI
   const newMeals = meals.map((meal) => {
     if (meal.locked || meal.edited) return meal
     if (!meal.foods?.length) return meal
-    const scaledFoods = meal.foods.map((f) =>
-      scaleFood(f, Math.round((f.portion * ratio) / 5) * 5),
-    )
+    const scaledFoods = meal.foods.map((f) => {
+      const newPortion = Math.round((f.portion * ratio) / 5) * 5
+      const pct = newPortion / Math.max(f.portion, 1)
+      return { ...f, portion: newPortion, calories: Math.round(f.calories * pct), protein: Math.round(f.protein * pct), carbs: Math.round(f.carbs * pct), fat: Math.round(f.fat * pct) }
+    })
     const totals = sumFoods(scaledFoods)
     return {
       ...meal,
