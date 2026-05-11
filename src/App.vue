@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CheckinProgress from './components/CheckinProgress.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
+import MealEditor from './components/MealEditor.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
 import ProfileView from './components/ProfileView.vue'
 import RecommendView from './components/RecommendView.vue'
@@ -33,8 +34,10 @@ import {
 import {
   generateMealPlan,
   generateScheduleFromProfile,
+  regenerateDay,
   regenerateSingleMeal,
 } from './utils/planGenerator.js'
+import { foods as defaultFoods } from './utils/foods.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
@@ -54,6 +57,7 @@ const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
 const toastMsg = ref('')
+const editingMeal = ref(null)
 
 const tabs = [
   { value: 'plan', label: '餐单', icon: '餐' },
@@ -84,7 +88,33 @@ const todayChecked = computed(() => checkins.value.some((item) => item.date === 
 
 watch(activeTab, (tab) => {
   if (!tabs.some((item) => item.value === tab)) return
+  if (tab !== 'plan') editingMeal.value = null
   lsSave('activeTab', tab)
+})
+
+const editorMeal = computed(() => {
+  if (!editingMeal.value) return null
+  return plan.value[editingMeal.value.dayIndex]?.meals?.[editingMeal.value.mealIndex] || null
+})
+const editorAvailableFoods = computed(() => {
+  const available = getAvailableFoods(foodPrefs.value)
+  return available.length ? available : defaultFoods
+})
+const editorMealTargetCalories = computed(() => {
+  if (!editingMeal.value) return 0
+
+  const { dayIndex, mealIndex } = editingMeal.value
+  const day = plan.value[dayIndex]
+  const dailyTarget =
+    Number(day?.targets?.calories)
+    || Number(planMeta.value?.targetCalories)
+    || Number(params.value?.targetCalories)
+    || 0
+  const split = Number(schedule.value?.split?.[mealIndex])
+
+  if (Number.isFinite(split) && split > 0) return Math.round(dailyTarget * split)
+
+  return Math.round(dailyTarget / Math.max(day?.meals?.length || 1, 1))
 })
 
 // ── Startup ──────────────────────────────────────────────────────────
@@ -262,6 +292,52 @@ function calculateDayTotals(meals) {
   )
 }
 
+function calculateFoodTotals(items) {
+  return items.reduce(
+    (sum, item) => ({
+      calories: sum.calories + Number(item.calories || 0),
+      protein: sum.protein + Number(item.protein || 0),
+      carbs: sum.carbs + Number(item.carbs || 0),
+      fat: sum.fat + Number(item.fat || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  )
+}
+
+function normalizeEditedFood(food) {
+  const portion = Math.max(0, Number(food?.portion) || 0)
+  const per100g = food?.per100g
+    ? {
+        calories: Number(food.per100g.calories || 0),
+        protein: Number(food.per100g.protein || 0),
+        carbs: Number(food.per100g.carbs || 0),
+        fat: Number(food.per100g.fat || 0),
+      }
+    : {
+        calories: Number(food?.calories || 0),
+        protein: Number(food?.protein || 0),
+        carbs: Number(food?.carbs || 0),
+        fat: Number(food?.fat || 0),
+      }
+  const ratio = portion / 100
+
+  return {
+    ...food,
+    category: food?.category || 'snack',
+    unit: food?.unit || 'g',
+    portion,
+    per100g,
+    calories: Math.round(per100g.calories * ratio),
+    protein: Math.round(per100g.protein * ratio * 10) / 10,
+    carbs: Math.round(per100g.carbs * ratio * 10) / 10,
+    fat: Math.round(per100g.fat * ratio * 10) / 10,
+  }
+}
+
+function formatMealPortion(foods) {
+  return foods.map((food) => `${food.name}${food.portion}${food.unit || 'g'}`).join(' + ')
+}
+
 function buildRecommendation(profile) {
   const dietSuggestion = suggestDietMethod(profile)
   const deficitSuggestion = calculateDeficitPercent(profile)
@@ -345,10 +421,10 @@ function handleRefreshRecipe() {
     return
   }
 
-  const lockedMeals = []
+  const preservedMeals = []
   plan.value.forEach((day, dayIndex) => {
     day.meals.forEach((meal, mealIndex) => {
-      if (meal.locked) lockedMeals.push({ dayIndex, mealIndex, meal })
+      if (meal.locked || meal.edited) preservedMeals.push({ dayIndex, mealIndex, meal })
     })
   })
 
@@ -360,7 +436,7 @@ function handleRefreshRecipe() {
   )
 
   const daysToRecalculate = new Set()
-  lockedMeals.forEach(({ dayIndex, mealIndex, meal }) => {
+  preservedMeals.forEach(({ dayIndex, mealIndex, meal }) => {
     if (nextPlan[dayIndex]?.meals[mealIndex]) {
       nextPlan[dayIndex].meals[mealIndex] = meal
       daysToRecalculate.add(dayIndex)
@@ -385,6 +461,79 @@ function handleRefreshRecipe() {
   setPlanMeta(plan.value, recFields)
   savePlan()
   showToast('✅ 已刷新食谱')
+}
+
+function handleEditMeal({ dayIndex, mealIndex }) {
+  if (!plan.value[dayIndex]?.meals?.[mealIndex]) return
+  editingMeal.value = { dayIndex, mealIndex }
+  nextTick(() => {
+    const content = document.querySelector('.app-content')
+    if (content) content.scrollTop = 0
+  })
+}
+
+function handleCancelMealEdit() {
+  editingMeal.value = null
+}
+
+function handleSaveMeal({ dayIndex, mealIndex, foods }) {
+  const meal = plan.value[dayIndex]?.meals?.[mealIndex]
+  if (!meal) return
+
+  const nextFoods = foods.map(normalizeEditedFood)
+  const totals = calculateFoodTotals(nextFoods)
+  const now = new Date().toISOString()
+
+  plan.value = plan.value.map((day, currentDayIndex) => {
+    if (currentDayIndex !== dayIndex) return day
+
+    const meals = day.meals.map((currentMeal, currentMealIndex) =>
+      currentMealIndex === mealIndex
+        ? {
+            ...currentMeal,
+            foods: nextFoods,
+            items: nextFoods,
+            portion: formatMealPortion(nextFoods),
+            calories: Math.round(totals.calories),
+            protein: Math.round(totals.protein * 10) / 10,
+            carbs: Math.round(totals.carbs * 10) / 10,
+            fat: Math.round(totals.fat * 10) / 10,
+            edited: true,
+            editSource: 'manual',
+            updatedAt: now,
+          }
+        : currentMeal,
+    )
+
+    return {
+      ...day,
+      meals,
+      totals: calculateDayTotals(meals),
+      edited: true,
+      updatedAt: now,
+    }
+  })
+
+  editingMeal.value = null
+  savePlan()
+  showToast('已保存餐次')
+}
+
+function handleRefreshDay(dayIndex) {
+  const day = plan.value[dayIndex]
+  if (!day || !params.value || !schedule.value) return
+
+  const nextDay = regenerateDay(
+    params.value,
+    schedule.value,
+    resolveAvailableFoods(),
+    day,
+  )
+  plan.value = plan.value.map((planDay, currentDayIndex) =>
+    currentDayIndex === dayIndex ? nextDay : planDay,
+  )
+  savePlan()
+  showToast('已刷新当天餐单')
 }
 
 function handleLockMeal({ dayIndex, mealIndex }) {
@@ -562,15 +711,28 @@ function setActiveTab(tab) {
     <template v-else-if="isAppShell">
       <section class="app-content tab-content">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
+        <MealEditor
+          v-if="activeTab === 'plan' && editingMeal && editorMeal"
+          key="meal-editor"
+          :meal="editorMeal"
+          :day-index="editingMeal.dayIndex"
+          :meal-index="editingMeal.mealIndex"
+          :meal-target-calories="editorMealTargetCalories"
+          :available-foods="editorAvailableFoods"
+          @save-meal="handleSaveMeal"
+          @cancel-edit="handleCancelMealEdit"
+        />
         <PlanCalendar
-          v-if="activeTab === 'plan'"
+          v-else-if="activeTab === 'plan'"
           key="plan-tab"
           :plan="plan"
           :start-date="planMeta?.startDate"
           :plan-meta="planMeta"
           :today-checked="todayChecked"
           @refresh-recipe="handleRefreshRecipe"
+          @refresh-day="handleRefreshDay"
           @view-checkin="handleViewCheckin"
+          @edit-meal="handleEditMeal"
           @lock-meal="handleLockMeal"
           @unlock-meal="handleUnlockMeal"
           @replace-meal="handleReplaceMeal"

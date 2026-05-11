@@ -335,6 +335,7 @@ function createMealWithTemplate({
       protein: totals.protein,
       carbs: totals.carbs,
       fat: totals.fat,
+      foods: items,
       items,
       simpleSteps: '即食，无需烹饪。',
       templateLabel: '轻食',
@@ -407,6 +408,7 @@ function createMealWithTemplate({
     protein: totals.protein,
     carbs: totals.carbs,
     fat: totals.fat,
+    foods: scaledItems,
     items: scaledItems,
     simpleSteps: fillStepPattern(template.simpleStepPattern, slotFoods),
     templateLabel: template.tags?.[0] || '自炊',
@@ -431,6 +433,7 @@ function createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames
     protein: totals.protein,
     carbs: totals.carbs,
     fat: totals.fat,
+    foods: items,
     items,
   }
 }
@@ -539,6 +542,54 @@ export function regenerateSingleMeal(
   newPlan[dayIndex].totals = sumFoods(newPlan[dayIndex].meals)
 
   return newPlan
+}
+
+export function regenerateDay(params, schedule = {}, availableFoods = null, currentDay = {}) {
+  if (!currentDay?.meals?.length) return currentDay
+
+  const mealCount = Number(schedule.mealCount) || currentDay.meals.length
+  const times = schedule.times?.length ? schedule.times : currentDay.meals.map((meal) => meal.time)
+  const splits =
+    schedule.split?.length === times.length
+      ? schedule.split
+      : currentDay.meals.map(() => 1 / Math.max(mealCount, 1))
+  const mealNames =
+    schedule.mealNames?.length === times.length
+      ? schedule.mealNames
+      : currentDay.meals.map((meal) => meal.name)
+  const dailyCalories =
+    Number(params?.targetCalories) || Number(currentDay.targets?.calories) || 1500
+  const foodPool = normalizeFoodPool(availableFoods?.length ? availableFoods : foods)
+  const usedFoodIds = new Set()
+  const usedTemplateIds = new Set()
+  const generationSeed = mealPlanGenerationIndex++
+  const baseDayIndex = Number(currentDay.day) ? Number(currentDay.day) - 1 : 0
+
+  const meals = currentDay.meals.map((meal, mealIndex) => {
+    if (meal?.locked || meal?.edited) return meal
+
+    const calorieTarget = dailyCalories * (splits[mealIndex] || (1 / Math.max(mealCount, 1)))
+    return createMealWithTemplate({
+      time: times[mealIndex] || meal.time,
+      index: mealIndex,
+      mealCount,
+      calorieTarget: Math.round(calorieTarget),
+      dayIndex: baseDayIndex + generationSeed + 1000,
+      mealNames,
+      foodPool,
+      usedFoodIds,
+      usedTemplateIds,
+      generationSeed,
+    })
+  })
+
+  return {
+    ...currentDay,
+    meals,
+    totals: sumFoods(meals),
+    edited: true,
+    updatedAt: new Date().toISOString(),
+  }
 }
 
 export { splitMap }

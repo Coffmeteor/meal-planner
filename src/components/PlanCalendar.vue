@@ -24,6 +24,8 @@ const props = defineProps({
 const emit = defineEmits([
   'viewCheckin',
   'refreshRecipe',
+  'refreshDay',
+  'editMeal',
   'lockMeal',
   'unlockMeal',
   'replaceMeal',
@@ -33,6 +35,19 @@ const selectedIndex = ref(0)
 
 const selectedDay = computed(() => props.plan[selectedIndex.value] || props.plan[0])
 const dayTotals = computed(() => selectedDay.value?.totals || {})
+const dayTargetCalories = computed(() =>
+  Number(selectedDay.value?.targets?.calories)
+  || Number(summaryMeta.value?.targetCalories)
+  || 0,
+)
+const dayDeviation = computed(() =>
+  Math.round(Number(dayTotals.value.calories || 0) - Number(dayTargetCalories.value || 0)),
+)
+const dayDeviationText = computed(() => deviationLabel(dayDeviation.value))
+const dayDeviationClass = computed(() => ({
+  close: Math.abs(dayDeviation.value) <= 50,
+  far: Math.abs(dayDeviation.value) >= 100,
+}))
 const dietMethodLabels = {
   threeMeals: '正常三餐',
   threeMealsPlusSnack: '三餐+加餐',
@@ -135,6 +150,23 @@ function toggleLock(mealIndex) {
   }
 }
 
+function deviationLabel(value) {
+  const abs = Math.abs(value)
+  if (abs <= 50) return '接近目标'
+  if (abs >= 100) return '偏离较多'
+  return '稍有偏差'
+}
+
+function mealFoods(meal) {
+  if (Array.isArray(meal?.foods) && meal.foods.length) return meal.foods
+  if (Array.isArray(meal?.items) && meal.items.length) return meal.items
+  return []
+}
+
+function handleEdit(mealIndex) {
+  emit('editMeal', { dayIndex: selectedIndex.value, mealIndex })
+}
+
 function handleReplace(mealIndex) {
   const meal = selectedDay.value?.meals[mealIndex]
   if (!meal) return
@@ -145,6 +177,18 @@ function handleReplace(mealIndex) {
   }
 
   emit('replaceMeal', { dayIndex: selectedIndex.value, mealIndex })
+}
+
+function handleRefreshDay() {
+  const hasEditedMeals = selectedDay.value?.meals?.some((meal) => meal?.edited === true)
+  if (
+    hasEditedMeals
+    && !confirm('刷新当天会替换未锁定餐，已编辑餐和已锁定餐保留。')
+  ) {
+    return
+  }
+
+  emit('refreshDay', selectedIndex.value)
 }
 </script>
 
@@ -206,9 +250,14 @@ function handleReplace(mealIndex) {
     </div>
 
     <div v-if="selectedDay" class="panel plan-detail">
-      <div class="section-title compact">
-        <p>第{{ selectedIndex + 1 }}天 / 共{{ plan.length }}天</p>
-        <h2>{{ formatDate(selectedDay.date) }} 饮食计划</h2>
+      <div class="section-title compact day-title-row">
+        <div>
+          <p>第{{ selectedIndex + 1 }}天 / 共{{ plan.length }}天</p>
+          <h2>{{ formatDate(selectedDay.date) }} 饮食计划</h2>
+        </div>
+        <button type="button" class="day-refresh-btn" @click="handleRefreshDay">
+          刷新当天餐单
+        </button>
       </div>
 
       <div class="macro-card">
@@ -221,6 +270,19 @@ function handleReplace(mealIndex) {
           <span><i class="fat"></i>脂肪 {{ Math.round(dayTotals.fat) }}g</span>
         </div>
       </div>
+      <div class="day-deviation-card">
+        <span>
+          今日目标: {{ Math.round(dayTargetCalories) }} kcal |
+          当前: {{ Math.round(dayTotals.calories || 0) }} kcal |
+          {{ dayDeviation > 0 ? '+' : '' }}{{ dayDeviation }} kcal
+        </span>
+        <strong :class="dayDeviationClass">{{ dayDeviationText }}</strong>
+        <small>
+          蛋白: {{ Math.round(dayTotals.protein || 0) }}g /
+          碳水: {{ Math.round(dayTotals.carbs || 0) }}g /
+          脂肪: {{ Math.round(dayTotals.fat || 0) }}g
+        </small>
+      </div>
 
       <div class="meal-list">
         <article
@@ -232,14 +294,26 @@ function handleReplace(mealIndex) {
           <div class="meal-head">
             <div>
               <span>{{ formatTime(meal.time) }}</span>
-              <strong>{{ meal.name }}</strong>
+              <strong>
+                {{ meal.name }}
+                <small v-if="meal.edited" class="edited-badge">已编辑</small>
+              </strong>
             </div>
             <em>{{ formatCalories(meal.calories) }}</em>
           </div>
-          <p>{{ meal.portion }}</p>
+          <ul v-if="mealFoods(meal).length" class="meal-food-list">
+            <li v-for="(food, foodIndex) in mealFoods(meal)" :key="`${food.name}-${foodIndex}`">
+              <span>{{ food.name }}</span>
+              <small>{{ Math.round(food.portion || 0) }}{{ food.unit || 'g' }}</small>
+            </li>
+          </ul>
+          <p v-else>{{ meal.portion }}</p>
           <p v-if="meal.simpleSteps" class="meal-steps">{{ meal.simpleSteps }}</p>
           <small>{{ formatMacros(meal) }}</small>
           <div class="meal-actions">
+            <button type="button" class="meal-action-btn" @click="handleEdit(mealIndex)">
+              编辑
+            </button>
             <button type="button" class="meal-action-btn" @click="toggleLock(mealIndex)">
               {{ meal.locked ? '已锁定' : '锁定' }}
             </button>
@@ -304,6 +378,56 @@ function handleReplace(mealIndex) {
   color: #7a847d;
 }
 
+.day-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.day-refresh-btn {
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line, #eadfca);
+  border-radius: 999rem;
+  background: #fffdf7;
+  color: var(--green-deep, #35754b);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.day-deviation-card {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.9rem;
+  background: #f6fbf5;
+  color: #405044;
+  line-height: 1.4;
+}
+
+.day-deviation-card span,
+.day-deviation-card small {
+  color: #68736b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.day-deviation-card strong,
+.deviation-badge {
+  color: #8a5a00;
+  font-size: 0.82rem;
+}
+
+.day-deviation-card strong.close {
+  color: var(--green-deep, #35754b);
+}
+
+.day-deviation-card strong.far {
+  color: #c0392b;
+}
+
 .meal-steps {
   font-size: 0.78rem;
   color: #666;
@@ -313,6 +437,45 @@ function handleReplace(mealIndex) {
 
 .meal-locked {
   border-left: 3px solid var(--green, #5ba66f);
+}
+
+.edited-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  margin-left: 0.35rem;
+  padding: 0 0.45rem;
+  border-radius: 999rem;
+  background: #fff0d8;
+  color: #8a5a00;
+  font-size: 0.68rem;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+.meal-food-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0.45rem;
+  padding: 0;
+  list-style: none;
+}
+
+.meal-food-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 0.65rem;
+  background: #fff8ef;
+  color: var(--text, #3f3b32);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.meal-food-list small {
+  flex: 0 0 auto;
+  color: var(--muted, #817867);
 }
 
 .meal-actions {
@@ -344,6 +507,10 @@ function handleReplace(mealIndex) {
 @media (max-width: 360px) {
   .plan-top-actions {
     grid-template-columns: 1fr;
+  }
+
+  .day-title-row {
+    flex-direction: column;
   }
 }
 </style>
