@@ -17,7 +17,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['editProfile', 'regenerate', 'clearData'])
+const emit = defineEmits(['editProfile', 'regenerate', 'clearData', 'manageFoods'])
 
 const selectedIndex = ref(0)
 
@@ -195,6 +195,9 @@ function parsePlanDate(dateValue) {
     </button>
     <button type="button" class="ghost-action full-width" @click="emit('regenerate')">
       重新生成
+    </button>
+    <button type="button" class="ghost-action full-width" @click="emit('manageFoods')">
+      我的食材
     </button>
     <button type="button" class="ghost-action full-width" @click="emit('clearData')">
       清空数据

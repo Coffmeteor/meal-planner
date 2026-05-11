@@ -146,25 +146,85 @@ function sumFoods(items) {
   )
 }
 
+function normalizeFood(food) {
+  return {
+    ...food,
+    calories: Number(food.calories ?? food.per100g?.calories ?? 0),
+    protein: Number(food.protein ?? food.per100g?.protein ?? 0),
+    carbs: Number(food.carbs ?? food.per100g?.carbs ?? 0),
+    fat: Number(food.fat ?? food.per100g?.fat ?? 0),
+    unit: food.unit || 'g',
+    defaultPortion: Number(food.defaultPortion) || 100,
+    tags: Array.isArray(food.tags) ? food.tags : [],
+    mealFit: Array.isArray(food.mealFit) ? food.mealFit : null,
+  }
+}
+
+function normalizeFoodPool(pool) {
+  return pool.map(normalizeFood)
+}
+
+function mealMatches(food, category) {
+  const inferredMealFit = {
+    protein: ['breakfast', 'lunch', 'dinner', 'snack'],
+    carb: ['breakfast', 'lunch', 'dinner'],
+    vegetable: ['lunch', 'dinner', 'snack'],
+    fat: ['snack'],
+    fruit: ['snack'],
+    dairy: ['breakfast', 'snack'],
+  }
+
+  if (food.mealFit) {
+    return food.mealFit.includes(category) || food.category === category
+  }
+
+  return food.category === category || inferredMealFit[food.category]?.includes(category)
+}
+
+function mealPool(category, foodPool) {
+  return foodPool.filter((food) => mealMatches(food, category))
+}
+
+function isProtein(food) {
+  return (
+    food.category === 'protein' ||
+    ((food.tags.includes('高蛋白') ||
+      food.tags.includes('植物蛋白') ||
+      food.tags.includes('优质蛋白')) &&
+      !food.tags.includes('主食'))
+  )
+}
+
+function isStaple(food) {
+  return food.category === 'carb' || food.tags.includes('主食')
+}
+
+function isVegetable(food) {
+  return food.category === 'vegetable' || food.tags.includes('蔬菜') || food.tags.includes('低热量')
+}
+
 function pickByTag(pool, tags, offset) {
+  if (!pool.length) return null
   const matches = pool.filter((food) => tags.some((tag) => food.tags.includes(tag)))
   return matches[offset % matches.length] || pool[offset % pool.length]
 }
 
-function buildMainMeal(category, calorieTarget, offset) {
-  const pool = foods.filter((food) => food.category === category)
-  const proteins = pool.filter(
-    (food) =>
-      (food.tags.includes('高蛋白') ||
-        food.tags.includes('植物蛋白') ||
-        food.tags.includes('优质蛋白')) &&
-      !food.tags.includes('主食'),
-  )
-  const staples = pool.filter((food) => food.tags.includes('主食'))
-  const vegetables = pool.filter((food) => food.tags.includes('蔬菜') || food.tags.includes('低热量'))
-  const protein = proteins[offset % proteins.length] || pool[offset % pool.length]
-  const staple = staples[(offset + 1) % staples.length] || pool[(offset + 1) % pool.length]
-  const vegetable = vegetables[(offset + 2) % vegetables.length] || pool[(offset + 2) % pool.length]
+function withFallback(primary, fallback, matcher) {
+  const matches = primary.filter(matcher)
+  return matches.length ? matches : fallback.filter(matcher)
+}
+
+function buildMainMeal(category, calorieTarget, offset, foodPool) {
+  const fallbackPool = mealPool(category, normalizeFoodPool(foods))
+  const pool = mealPool(category, foodPool)
+  const activePool = pool.length ? pool : fallbackPool
+  const proteins = withFallback(activePool, fallbackPool, isProtein)
+  const staples = withFallback(activePool, fallbackPool, isStaple)
+  const vegetables = withFallback(activePool, fallbackPool, isVegetable)
+  const protein = proteins[offset % proteins.length] || activePool[offset % activePool.length]
+  const staple = staples[(offset + 1) % staples.length] || activePool[(offset + 1) % activePool.length]
+  const vegetable =
+    vegetables[(offset + 2) % vegetables.length] || activePool[(offset + 2) % activePool.length]
   const base = [protein, staple, vegetable].filter(Boolean)
   const baseCalories = base.reduce(
     (total, food) => total + food.calories * (food.defaultPortion / 100),
@@ -175,11 +235,13 @@ function buildMainMeal(category, calorieTarget, offset) {
   return base.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
 
-function buildSnackMeal(calorieTarget, offset) {
-  const pool = foods.filter((food) => food.category === 'snack')
-  const first = pickByTag(pool, ['水果', '高蛋白', '植物蛋白'], offset)
-  const second = pickByTag(pool, ['坚果', '低热量', '饱腹'], offset + 2)
-  const items = first.id === second.id ? [first] : [first, second]
+function buildSnackMeal(calorieTarget, offset, foodPool) {
+  const fallbackPool = mealPool('snack', normalizeFoodPool(foods))
+  const pool = mealPool('snack', foodPool)
+  const activePool = pool.length ? pool : fallbackPool
+  const first = pickByTag(activePool, ['水果', '高蛋白', '植物蛋白'], offset)
+  const second = pickByTag(activePool, ['坚果', '低热量', '饱腹'], offset + 2)
+  const items = first?.id === second?.id ? [first] : [first, second].filter(Boolean)
   const baseCalories = items.reduce(
     (total, food) => total + food.calories * (food.defaultPortion / 100),
     0,
@@ -189,13 +251,13 @@ function buildSnackMeal(calorieTarget, offset) {
   return items.map((food) => scaleFood(food, Math.round((food.defaultPortion * scale) / 5) * 5))
 }
 
-function createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames }) {
+function createMeal({ time, index, mealCount, calorieTarget, dayIndex, mealNames, foodPool }) {
   const meta = getMealMeta(mealCount, index, mealNames)
   const offset = dayIndex * mealCount + index
   const items =
     meta.type === 'snack'
-      ? buildSnackMeal(calorieTarget, offset)
-      : buildMainMeal(meta.category, calorieTarget, offset)
+      ? buildSnackMeal(calorieTarget, offset, foodPool)
+      : buildMainMeal(meta.category, calorieTarget, offset, foodPool)
   const totals = sumFoods(items)
 
   return {
@@ -216,7 +278,8 @@ function addDays(date, days) {
   return next
 }
 
-export function generateMealPlan(params, schedule = {}) {
+export function generateMealPlan(params, schedule = {}, availableFoods = null) {
+  const foodPool = normalizeFoodPool(availableFoods?.length ? availableFoods : foods)
   const baseTargets = calculateDailyTargets(params)
   const calories = Number(params.targetCalories) || baseTargets.calories
   const dailyTargets = {
@@ -242,6 +305,7 @@ export function generateMealPlan(params, schedule = {}) {
         calorieTarget: dailyTargets.calories * splits[index],
         dayIndex,
         mealNames,
+        foodPool,
       }),
     )
     const totals = sumFoods(meals)

@@ -4,6 +4,7 @@ const KEYS = {
   profile: 'profile',
   schedule: 'schedule',
   latestPlan: 'latestPlan',
+  foodPreferences: 'foodPreferences',
 }
 
 // localStorage fallback prefix — used when IndexedDB is unavailable or fails.
@@ -164,6 +165,8 @@ export async function deleteLatestPlan() {
 export async function clearAllData() {
   await dualClear()
 }
+
+export { dualGet, dualSet, dualDelete }
 
 export async function getAppState() {
   try {

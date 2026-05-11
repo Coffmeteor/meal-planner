@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
 import RecommendView from './components/RecommendView.vue'
@@ -19,19 +20,27 @@ import {
   suggestDietMethod,
 } from './utils/calc.js'
 import {
+  emptyPreferences,
+  getAvailableFoods,
+  loadFoodPreferences,
+  saveFoodPreferences,
+} from './utils/foodPreferences.js'
+import {
   generateMealPlan,
   generateSchedule,
   generateScheduleFromProfile,
 } from './utils/planGenerator.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
+const defaultFoodPreferences = emptyPreferences()
 
-const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan'
+const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods'
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
 const editMode = ref(false)
 const planMeta = ref(null)
+const foodPrefs = ref(null)
 const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
@@ -51,9 +60,13 @@ const progress = computed(() => {
 
 onMounted(async () => {
   try {
-    const appState = await getAppState()
+    const [appState, loadedFoodPrefs] = await Promise.all([
+      getAppState(),
+      loadFoodPreferences(),
+    ])
     const lp = appState.latestPlan
     const rawLatestPlan = readLatestPlanFromLocalStorage()
+    foodPrefs.value = loadedFoodPrefs
     params.value = lp?.paramsSnapshot || appState.profile || null
     schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
     plan.value = lp?.plan || []
@@ -212,7 +225,7 @@ function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: a
 function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
   params.value = confirmedParams
   schedule.value = confirmedSchedule
-  plan.value = generateMealPlan(confirmedParams, confirmedSchedule)
+  plan.value = generateMealPlan(confirmedParams, confirmedSchedule, resolveAvailableFoods())
   setPlanMeta(plan.value)
 
   // 1. localStorage sync — instant, never blocks UI
@@ -262,7 +275,7 @@ async function handleRegeneratePlan() {
 
   params.value = prof
   schedule.value = sched
-  plan.value = generateMealPlan(prof, sched)
+  plan.value = generateMealPlan(prof, sched, resolveAvailableFoods())
   const recFields = {
     dietMethod: prof.dietMethod ?? planMeta.value?.dietMethod ?? null,
     deficitPercent: prof.deficitPercent ?? planMeta.value?.deficitPercent ?? null,
@@ -288,16 +301,31 @@ async function handleClearData() {
   try {
     await clearAllData()
   } catch (e) { /* */ }
-  for (const k of ['profile', 'schedule', 'latestPlan']) lsRemove(k)
+  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences']) lsRemove(k)
   params.value = null
   schedule.value = null
   plan.value = []
+  foodPrefs.value = emptyPreferences()
   editMode.value = false
   recommendation.value = null
   planMeta.value = null
   saveError.value = ''
   saving.value = false
   view.value = 'input'
+}
+
+function resolveAvailableFoods() {
+  const available = getAvailableFoods(foodPrefs.value)
+  return available.length ? available : null
+}
+
+function handleManageFoods() {
+  view.value = 'foods'
+}
+
+async function handleFoodsSave(updatedPrefs) {
+  foodPrefs.value = await saveFoodPreferences(updatedPrefs)
+  view.value = plan.value.length ? 'plan' : 'input'
 }
 </script>
 
@@ -309,7 +337,8 @@ async function handleClearData() {
         <span class="eyebrow">轻盈餐盘</span>
         <h1>减脂餐计划</h1>
       </div>
-      <div v-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
+      <div v-if="view === 'foods'" class="progress-pill">食材</div>
+      <div v-else-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
       <div v-else class="progress-pill">餐单</div>
     </header>
 
@@ -353,8 +382,16 @@ async function handleClearData() {
           @edit-profile="handleEditProfile"
           @regenerate="handleRegeneratePlan"
           @clear-data="handleClearData"
+          @manage-foods="handleManageFoods"
         />
       </section>
+      <FoodPreferences
+        v-else-if="view === 'foods'"
+        key="foods"
+        :food-preferences="foodPrefs || defaultFoodPreferences"
+        @save="handleFoodsSave"
+        @close="view = plan.length ? 'plan' : 'input'"
+      />
     </Transition>
   </main>
 </template>
