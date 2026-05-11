@@ -40,6 +40,7 @@ import {
   regenerateDay,
   regenerateSingleMeal,
 } from './utils/planGenerator.js'
+import { normalizeDietMethod, normalizeEatingWindow } from './utils/scheduleUtils.js'
 import { foods as defaultFoods } from './utils/foods.js'
 import {
   calculateDayTotals,
@@ -154,8 +155,24 @@ async function loadAppState() {
     foodPrefs.value = loadedFoodPrefs
     weightLogs.value = loadedWeightLogs
     checkins.value = loadedCheckins
-    params.value = lp?.paramsSnapshot || appState.profile || null
-    schedule.value = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
+    const loadedSchedule = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
+    const loadedEatingWindow =
+      rawLatestPlan?.eatingWindow
+      ?? rawLatestPlan?.paramsSnapshot?.eatingWindow
+      ?? rawLatestPlan?.scheduleSnapshot?.eatingWindow
+      ?? loadedSchedule?.eatingWindow
+      ?? lp?.eatingWindow
+      ?? lp?.scheduleSnapshot?.eatingWindow
+      ?? null
+    const loadedParams = lp?.paramsSnapshot || appState.profile || null
+    params.value =
+      loadedParams && loadedEatingWindow
+        ? { ...loadedParams, eatingWindow: loadedEatingWindow }
+        : loadedParams
+    schedule.value =
+      loadedSchedule && loadedEatingWindow && !loadedSchedule.eatingWindow
+        ? { ...loadedSchedule, eatingWindow: loadedEatingWindow }
+        : loadedSchedule
     plan.value = lp?.plan || []
     planMeta.value = plan.value.length
       ? {
@@ -169,6 +186,7 @@ async function loadAppState() {
           targetCalories: rawLatestPlan?.targetCalories ?? lp?.targetCalories ?? null,
           macros: rawLatestPlan?.macros ?? lp?.macros ?? null,
           recommendationReason: rawLatestPlan?.recommendationReason ?? lp?.recommendationReason ?? null,
+          eatingWindow: loadedEatingWindow,
         }
       : null
 
@@ -268,6 +286,11 @@ function setPlanMeta(planArr, recommendationFields = {}) {
     deficitPercent: recommendationFields.deficitPercent ?? params.value?.deficitPercent ?? null,
     targetCalories: recommendationFields.targetCalories ?? params.value?.targetCalories ?? null,
     macros: recommendationFields.macros ?? params.value?.macroTargets ?? null,
+    eatingWindow:
+      recommendationFields.eatingWindow
+      ?? schedule.value?.eatingWindow
+      ?? params.value?.eatingWindow
+      ?? null,
     recommendationReason:
       recommendationFields.recommendationReason
       ?? params.value?.recommendationReason
@@ -333,13 +356,31 @@ function handleInputSubmit(nextParams) {
   view.value = 'recommend'
 }
 
-function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: acceptedSchedule }) {
+function currentEatingWindow() {
+  const rawWindow = schedule.value?.eatingWindow || params.value?.eatingWindow
+  return normalizeEatingWindow(
+    params.value,
+    rawWindow?.type && rawWindow.type !== 'none' ? rawWindow.type : params.value?.dietMethod,
+    rawWindow,
+  )
+}
+
+function handleRecommendAccept({
+  dietMethod,
+  deficitPercent,
+  macros,
+  schedule: acceptedSchedule,
+  eatingWindow,
+}) {
+  dietMethod = normalizeDietMethod(dietMethod)
   const tdee = calculateTdee(params.value)
   const targetCalories = calculateTargetCaloriesV2(tdee, deficitPercent, params.value.gender)
+  const acceptedEatingWindow = normalizeEatingWindow(params.value, dietMethod, eatingWindow)
   const enrichedParams = {
     ...params.value,
     dietMethod,
     deficitPercent,
+    eatingWindow: acceptedEatingWindow,
     targetCalories,
     macroTargets: {
       protein: macros.protein,
@@ -350,13 +391,22 @@ function handleRecommendAccept({ dietMethod, deficitPercent, macros, schedule: a
   }
 
   params.value = enrichedParams
-  schedule.value = acceptedSchedule
+  schedule.value = {
+    ...acceptedSchedule,
+    eatingWindow: acceptedEatingWindow,
+  }
 
   lsSave('profile', enrichedParams)
-  lsSave('schedule', acceptedSchedule)
-  bgSaveProfileAndSchedule(enrichedParams, acceptedSchedule)
+  lsSave('schedule', schedule.value)
+  bgSaveProfileAndSchedule(enrichedParams, schedule.value)
 
   view.value = 'confirm'
+}
+
+function handleConfirmBack(payload = {}) {
+  if (payload.params) params.value = payload.params
+  if (payload.schedule) schedule.value = payload.schedule
+  view.value = 'recommend'
 }
 
 function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
@@ -397,7 +447,7 @@ function handleRefreshRecipe() {
   const existingMeta = planMeta.value || {}
   const oldStartDate = existingMeta.startDate
   const nextPlan = rebasePlanDates(
-    generateMealPlan(params.value, schedule.value, resolveAvailableFoods()),
+    generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow()),
     oldStartDate,
   )
 
@@ -419,6 +469,7 @@ function handleRefreshRecipe() {
     deficitPercent: existingMeta.deficitPercent ?? params.value?.deficitPercent ?? null,
     targetCalories: existingMeta.targetCalories ?? params.value?.targetCalories ?? null,
     macros: existingMeta.macros ?? params.value?.macroTargets ?? null,
+    eatingWindow: existingMeta.eatingWindow ?? currentEatingWindow(),
     recommendationReason:
       existingMeta.recommendationReason
       ?? params.value?.recommendationReason
@@ -486,6 +537,8 @@ function handleRefreshDay(dayIndex) {
     schedule.value,
     resolveAvailableFoods(),
     day,
+    {},
+    currentEatingWindow(),
   )
   plan.value = plan.value.map((planDay, currentDayIndex) =>
     currentDayIndex === dayIndex ? nextDay : planDay,
@@ -527,6 +580,7 @@ function handleSaveDayFood({ dayIndex, selectedFoodIds }) {
     selectedFoods,
     day,
     { strictFoodPool: true, editSource: 'dayFoodPool' },
+    currentEatingWindow(),
   )
   plan.value = plan.value.map((planDay, currentDayIndex) =>
     currentDayIndex === dayIndex
@@ -599,6 +653,7 @@ function handleReplaceMeal({ dayIndex, mealIndex }) {
     params.value,
     schedule.value,
     resolveAvailableFoods(),
+    currentEatingWindow(),
   )
   savePlan()
   showToast('✅ 已更换')
@@ -705,12 +760,13 @@ async function handleFoodsSave(updatedPrefs, options = {}) {
   foodPrefs.value = await saveFoodPreferences(updatedPrefs)
 
   if (foodSetupMode.value) {
-    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods())
+    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow())
     const recFields = {
       dietMethod: params.value?.dietMethod ?? null,
       deficitPercent: params.value?.deficitPercent ?? null,
       targetCalories: params.value?.targetCalories ?? null,
       macros: params.value?.macroTargets ?? null,
+      eatingWindow: currentEatingWindow(),
       recommendationReason: params.value?.recommendationReason ?? null,
     }
     setPlanMeta(plan.value, recFields)
@@ -792,6 +848,7 @@ function setActiveTab(tab) {
           :plan="plan"
           :start-date="planMeta?.startDate"
           :plan-meta="planMeta"
+          :eating-window="planMeta?.eatingWindow || schedule?.eatingWindow || params?.eatingWindow"
           :today-checked="todayChecked"
           @refresh-recipe="handleRefreshRecipe"
           @refresh-day="handleRefreshDay"
@@ -869,7 +926,7 @@ function setActiveTab(tab) {
           key="confirm"
           :params="params"
           :initial-schedule="schedule"
-          @back="view = 'recommend'"
+          @back="handleConfirmBack"
           @confirm="handleConfirm"
         />
         <RecommendView

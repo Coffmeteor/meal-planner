@@ -2,9 +2,17 @@
 
 ## Current Version
 
-**v0.2.1** — Patch: meal edit display sync, day-level food editor, local export/import backup
+**v0.2.3** — Patch: diet method semantics, editable eating window, editable meal times
 
-## Patch (v0.2.1)
+## Patch (v0.2.3)
+
+- Added `eatingWindow` data to recommendation, schedule, plan generation, and plan metadata.
+- Renamed 14:10 / 16:8 recommendation labels to explicit “进食窗口” schemes with descriptions and collapsed summaries.
+- Added editable meal time inputs in schedule confirmation with increasing-time and in-window validation.
+- Added editable 14:10 / 16:8 window start, auto-calculated end, fasting-hours display, and auto-distribution of meal times.
+- Plan summary now shows the saved eating scheme, including actual 14:10 / 16:8 window times.
+
+## Previous Patch (v0.2.1)
 
 - Added `APP_VERSION` single source and updated profile display to `v0.2.1`.
 - Fixed manual meal edits so `name`, `foods/items`, `portion`, calories, macros, edit flags, and fallback `simpleSteps` are normalized together and persist across reloads.

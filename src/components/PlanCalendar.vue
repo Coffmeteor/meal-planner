@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { formatCalories, formatDate, formatMacros, formatTime } from '../utils/helpers.js'
 import { mealFoods, normalizeMealDisplay } from '../utils/mealDisplay.js'
+import { normalizeDietMethod } from '../utils/scheduleUtils.js'
 
 const props = defineProps({
   plan: {
@@ -13,6 +14,10 @@ const props = defineProps({
     default: null,
   },
   planMeta: {
+    type: Object,
+    default: null,
+  },
+  eatingWindow: {
     type: Object,
     default: null,
   },
@@ -56,9 +61,18 @@ const dayDeviationClass = computed(() => ({
 const dietMethodLabels = {
   threeMeals: '正常三餐',
   threeMealsPlusSnack: '三餐+加餐',
-  '14:10': '14:10',
-  '16:8': '16:8',
+  '14:10': '14:10 进食窗口',
+  '16:8': '16:8 进食窗口',
 }
+const eatingWindowLabel = computed(() => {
+  const window = props.eatingWindow || props.planMeta?.eatingWindow
+  if (window?.type && window.type !== 'none') {
+    return `${normalizeDietMethod(window.type)} 进食窗口 ${window.start}-${window.end}`
+  }
+
+  const method = normalizeDietMethod(props.planMeta?.dietMethod)
+  return props.planMeta?.dietMethodLabel || dietMethodLabels[method] || null
+})
 const summaryMeta = computed(() => {
   if (!props.planMeta) return null
   const hasRecommendationMeta = Boolean(
@@ -66,15 +80,14 @@ const summaryMeta = computed(() => {
       || props.planMeta.dietMethodLabel
       || props.planMeta.targetCalories
       || props.planMeta.deficitPercent
-      || props.planMeta.macros,
+      || props.planMeta.macros
+      || props.planMeta.eatingWindow,
   )
   if (!hasRecommendationMeta) return null
 
   return {
     ...props.planMeta,
-    dietMethodLabel: props.planMeta.dietMethodLabel
-      || dietMethodLabels[props.planMeta.dietMethod]
-      || null,
+    dietMethodLabel: eatingWindowLabel.value,
     totalDays: props.planMeta.totalDays || props.planMeta.days || props.plan.length || null,
   }
 })
