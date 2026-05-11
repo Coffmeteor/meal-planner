@@ -255,6 +255,28 @@ export async function clearAllData() {
   await dualClear()
 }
 
+export async function exportAllData() {
+  const entries = await Promise.all(
+    Object.entries(KEYS).map(async ([name, key]) => [name, await dualGet(key)]),
+  )
+  return Object.fromEntries(entries)
+}
+
+export async function importAllData(data) {
+  if (!data || typeof data !== 'object') return
+
+  for (const [name, key] of Object.entries(KEYS)) {
+    if (!Object.prototype.hasOwnProperty.call(data, name)) continue
+
+    const value = data[name]
+    if (value === undefined || value === null) {
+      await dualDelete(key)
+    } else {
+      await dualSet(key, value)
+    }
+  }
+}
+
 export { dualGet, dualSet, dualDelete }
 
 export async function getAppState() {

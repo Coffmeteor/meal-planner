@@ -2,7 +2,14 @@
 
 ## Current Version
 
-**v0.1.1** — Bugfix: UTC date offset in plan generation (China UTC+8 before 8 AM)
+**v0.2.1** — Patch: meal edit display sync, day-level food editor, local export/import backup
+
+## Patch (v0.2.1)
+
+- Added `APP_VERSION` single source and updated profile display to `v0.2.1`.
+- Fixed manual meal edits so `name`, `foods/items`, `portion`, calories, macros, edit flags, and fallback `simpleSteps` are normalized together and persist across reloads.
+- Added day-level food editing: a selected day can store `dayFoodPool`, regenerate only unlocked/unedited meals from selected ingredients, and leave other days unchanged.
+- Added browser-local JSON export/import with schema validation, import summary, overwrite confirmation, partial data handling, and restore attempt on failed import.
 
 ## Bugfix (v0.1.1)
 
@@ -22,6 +29,7 @@
 | Round 5 | 体重记录、7 日均重、动态建议、SVG 体重趋势图 |
 | Round 6 | 每日执行打卡、7 天复盘 |
 | Round 7 | App Shell 底部 Tab 导航：餐单 / 食材 / 进度 / 打卡 / 我的 |
+| Round 8 | 单餐编辑、当天食材池、导出/导入、本地版本标识 |
 
 ## Core Capabilities (v0.1.0)
 
@@ -34,26 +42,25 @@
 - Food tab: manage ingredients, add/delete custom, refresh recipes
 - Progress tab: weight logging, 7-day average, SVG trend chart, dynamic advice
 - Check-in tab: today's execution, 7-day review, record list with delete confirmation
-- Profile tab: profile summary, edit profile, browser-only storage notice, clear all data (double confirmation)
+- Profile tab: profile summary, edit profile, browser-only storage notice, export/import backup, clear all data (double confirmation)
 - Navigation: wizard mode (no tabs) → app shell mode (bottom tabs)
 
 ## Data
 
 - **Storage:** IndexedDB + localStorage fallback
 - **Scope:** Browser-local only
-- **No accounts, no cloud sync, no import/export**
+- **No accounts or cloud sync; import/export is local JSON only**
 
 ## Known Limitations
 
 - No user accounts or authentication
 - No cloud sync across devices
-- No import/export of data
+- Import/export is manual JSON backup only; no automatic sync
 - Food nutrition data is product-grade estimation, not laboratory precision
 - Not medical advice — does not constitute health or nutrition diagnosis
 
 ## Next Steps
 
-- v0.1.x bugfix cycle (UI polish, edge cases)
-- Data export/import
+- v0.2.x bugfix cycle (UI polish, edge cases)
 - Ingredient database refinement
 - More detailed review suggestions

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { formatTime } from '../utils/helpers.js'
+import { normalizeEditedMeal } from '../utils/mealDisplay.js'
 
 const props = defineProps({
   meal: {
@@ -247,10 +248,12 @@ function pickFood(food) {
 }
 
 function handleSave() {
+  const normalizedMeal = normalizeEditedMeal(props.meal, localFoods.value)
   emit('saveMeal', {
     dayIndex: props.dayIndex,
     mealIndex: props.mealIndex,
-    foods: localFoods.value.map((food) => ({ ...food })),
+    foods: normalizedMeal.foods,
+    meal: normalizedMeal,
   })
 }
 </script>

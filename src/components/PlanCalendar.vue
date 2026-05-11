@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { formatCalories, formatDate, formatMacros, formatTime } from '../utils/helpers.js'
+import { mealFoods, normalizeMealDisplay } from '../utils/mealDisplay.js'
 
 const props = defineProps({
   plan: {
@@ -26,6 +27,7 @@ const emit = defineEmits([
   'refreshRecipe',
   'refreshDay',
   'editMeal',
+  'editDayFood',
   'lockMeal',
   'unlockMeal',
   'replaceMeal',
@@ -34,6 +36,9 @@ const emit = defineEmits([
 const selectedIndex = ref(0)
 
 const selectedDay = computed(() => props.plan[selectedIndex.value] || props.plan[0])
+const displayedMeals = computed(() =>
+  (selectedDay.value?.meals || []).map((meal) => normalizeMealDisplay(meal)),
+)
 const dayTotals = computed(() => selectedDay.value?.totals || {})
 const dayTargetCalories = computed(() =>
   Number(selectedDay.value?.targets?.calories)
@@ -157,12 +162,6 @@ function deviationLabel(value) {
   return '稍有偏差'
 }
 
-function mealFoods(meal) {
-  if (Array.isArray(meal?.foods) && meal.foods.length) return meal.foods
-  if (Array.isArray(meal?.items) && meal.items.length) return meal.items
-  return []
-}
-
 function handleEdit(mealIndex) {
   emit('editMeal', { dayIndex: selectedIndex.value, mealIndex })
 }
@@ -189,6 +188,10 @@ function handleRefreshDay() {
   }
 
   emit('refreshDay', selectedIndex.value)
+}
+
+function handleEditDayFood() {
+  emit('editDayFood', selectedIndex.value)
 }
 </script>
 
@@ -255,9 +258,14 @@ function handleRefreshDay() {
           <p>第{{ selectedIndex + 1 }}天 / 共{{ plan.length }}天</p>
           <h2>{{ formatDate(selectedDay.date) }} 饮食计划</h2>
         </div>
-        <button type="button" class="day-refresh-btn" @click="handleRefreshDay">
-          刷新当天餐单
-        </button>
+        <div class="day-title-actions">
+          <button type="button" class="day-refresh-btn" @click="handleEditDayFood">
+            编辑当天
+          </button>
+          <button type="button" class="day-refresh-btn" @click="handleRefreshDay">
+            刷新当天餐单
+          </button>
+        </div>
       </div>
 
       <div class="macro-card">
@@ -286,7 +294,7 @@ function handleRefreshDay() {
 
       <div class="meal-list">
         <article
-          v-for="(meal, mealIndex) in selectedDay.meals"
+          v-for="(meal, mealIndex) in displayedMeals"
           :key="`${meal.time}-${meal.name}-${mealIndex}`"
           class="meal-card"
           :class="{ 'meal-locked': meal.locked }"
@@ -395,6 +403,14 @@ function handleRefreshDay() {
   color: var(--green-deep, #35754b);
   font-size: 0.74rem;
   font-weight: 900;
+}
+
+.day-title-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .day-deviation-card {
@@ -511,6 +527,15 @@ function handleRefreshDay() {
 
   .day-title-row {
     flex-direction: column;
+  }
+
+  .day-title-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .day-title-actions .day-refresh-btn {
+    flex: 1 1 0;
   }
 }
 </style>
