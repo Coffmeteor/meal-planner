@@ -30,6 +30,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  showClose: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['save', 'close'])
@@ -64,6 +68,7 @@ const currentWeight = computed(() => {
   const weight = Number(latestLog.value?.weight)
   return Number.isFinite(weight) && weight > 0 ? weight : null
 })
+const hasWeightLogs = computed(() => props.weightLogs.length > 0)
 const summary = computed(() => {
   const startWeight = targetCurve.value?.startWeight ?? null
   const targetWeight = targetCurve.value?.targetWeight ?? null
@@ -72,11 +77,11 @@ const summary = computed(() => {
   return {
     startWeight,
     targetWeight,
-    currentWeight: current,
-    lostWeight: startWeight != null && current != null
+    currentWeight: hasWeightLogs.value ? current : null,
+    lostWeight: hasWeightLogs.value && startWeight != null && current != null
       ? Math.round((startWeight - current) * 10) / 10
       : null,
-    remainingWeight: targetWeight != null && current != null
+    remainingWeight: hasWeightLogs.value && targetWeight != null && current != null
       ? Math.max(0, Math.round((current - targetWeight) * 10) / 10)
       : null,
   }
@@ -215,7 +220,7 @@ async function handleDelete(log) {
         <p>体重趋势</p>
         <h2>进度记录</h2>
       </div>
-      <button type="button" class="text-action" @click="emit('close')">返回</button>
+      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
 
     <div class="summary-panel">
@@ -323,7 +328,7 @@ async function handleDelete(log) {
       </div>
     </div>
     <div v-else class="chart-panel chart-empty">
-      <p>继续记录几天后生成趋势图</p>
+      <p>{{ hasWeightLogs ? '继续记录几天后生成趋势图' : '添加第一条体重记录后，将开始生成趋势' }}</p>
     </div>
 
     <form class="log-form" @submit.prevent="handleSave">

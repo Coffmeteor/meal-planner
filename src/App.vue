@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CheckinProgress from './components/CheckinProgress.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
 import PlanCalendar from './components/PlanCalendar.vue'
+import ProfileView from './components/ProfileView.vue'
 import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
 import WeightProgress from './components/WeightProgress.vue'
@@ -38,7 +39,8 @@ import {
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
 
-const view = ref(null) // null = loading; 'input' | 'recommend' | 'confirm' | 'plan' | 'foods' | 'progress' | 'checkin'
+const view = ref(null) // null = loading; wizard: 'input' | 'recommend' | 'confirm' | 'foods'; shell: 'plan'
+const activeTab = ref('plan')
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
@@ -53,14 +55,36 @@ const saveError = ref('')
 const saving = ref(false)
 const toastMsg = ref('')
 
+const tabs = [
+  { value: 'plan', label: '餐单', icon: '餐' },
+  { value: 'foods', label: '食材', icon: '材' },
+  { value: 'progress', label: '进度', icon: '趋' },
+  { value: 'checkin', label: '打卡', icon: '记' },
+  { value: 'profile', label: '我的', icon: '我' },
+]
+
 function showToast(msg) {
   toastMsg.value = msg
   setTimeout(() => { toastMsg.value = '' }, 2200)
 }
 
 const progress = computed(() => {
-  const steps = { input: 1, recommend: 2, confirm: 3, plan: 4 }
+  const steps = { input: 1, recommend: 2, confirm: 3, foods: 4, plan: 5 }
   return steps[view.value] || 0
+})
+const isAppShell = computed(() => view.value === 'plan' && plan.value.length > 0)
+const activeTabLabel = computed(() =>
+  tabs.find((tab) => tab.value === activeTab.value)?.label || '餐单',
+)
+const headerPill = computed(() => {
+  if (isAppShell.value) return activeTabLabel.value
+  return progress.value ? `${progress.value}/5` : ''
+})
+const todayChecked = computed(() => checkins.value.some((item) => item.date === todayYmd()))
+
+watch(activeTab, (tab) => {
+  if (!tabs.some((item) => item.value === tab)) return
+  lsSave('activeTab', tab)
 })
 
 // ── Startup ──────────────────────────────────────────────────────────
@@ -96,6 +120,8 @@ onMounted(async () => {
         }
       : null
 
+    const savedTab = readJsonFromLocalStorage('activeTab')
+    if (tabs.some((tab) => tab.value === savedTab)) activeTab.value = savedTab
     view.value = plan.value.length ? 'plan' : 'input'
   } catch (error) {
     console.warn('Failed to initialize app state', error)
@@ -110,8 +136,12 @@ function lsSave(key, value) {
 }
 
 function readLatestPlanFromLocalStorage() {
+  return readJsonFromLocalStorage('latestPlan')
+}
+
+function readJsonFromLocalStorage(key) {
   try {
-    const raw = localStorage.getItem(LS_PREFIX + 'latestPlan')
+    const raw = localStorage.getItem(LS_PREFIX + key)
     return raw ? JSON.parse(raw) : null
   } catch (e) {
     return null
@@ -196,6 +226,10 @@ function formatDateYmd(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function todayYmd() {
+  return formatDateYmd(new Date())
 }
 
 function rebasePlanDates(planArr, startDate) {
@@ -302,7 +336,7 @@ function handleEditProfile() {
 
 function handleCancelEdit() {
   editMode.value = false
-  view.value = 'plan'
+  view.value = plan.value.length ? 'plan' : 'input'
 }
 
 function handleRefreshRecipe() {
@@ -411,10 +445,24 @@ function handleReplaceMeal({ dayIndex, mealIndex }) {
 }
 
 async function handleClearData() {
+  const firstConfirm = confirm('确定清空全部本地数据吗？此操作不可恢复。')
+  if (!firstConfirm) return
+  const secondConfirm = confirm('请再次确认：将删除资料、餐单、食材、体重和打卡记录。')
+  if (!secondConfirm) return
+
   try {
     await clearAllData()
   } catch (e) { /* */ }
-  for (const k of ['profile', 'schedule', 'latestPlan', 'foodPreferences', 'weightLogs', 'checkins']) lsRemove(k)
+  activeTab.value = 'plan'
+  for (const k of [
+    'profile',
+    'schedule',
+    'latestPlan',
+    'foodPreferences',
+    'weightLogs',
+    'checkins',
+    'activeTab',
+  ]) lsRemove(k)
   params.value = null
   schedule.value = null
   plan.value = []
@@ -435,30 +483,21 @@ function resolveAvailableFoods() {
   return available.length ? available : null
 }
 
-function handleManageFoods() {
-  foodSetupMode.value = false
-  view.value = 'foods'
-}
-
-function handleViewProgress() {
-  view.value = 'progress'
-}
-
 function handleWeightLogsSave(updatedLogs) {
   weightLogs.value = updatedLogs
-  view.value = 'plan'
+  showToast('已保存体重记录')
 }
 
 function handleViewCheckin() {
-  view.value = 'checkin'
+  setActiveTab('checkin')
 }
 
 function handleCheckinSave(updated) {
   checkins.value = updated
-  view.value = 'plan'
+  showToast('已保存打卡')
 }
 
-async function handleFoodsSave(updatedPrefs) {
+async function handleFoodsSave(updatedPrefs, options = {}) {
   foodPrefs.value = await saveFoodPreferences(updatedPrefs)
 
   if (foodSetupMode.value) {
@@ -473,11 +512,18 @@ async function handleFoodsSave(updatedPrefs) {
     setPlanMeta(plan.value, recFields)
     savePlan()
     foodSetupMode.value = false
+    activeTab.value = 'plan'
     view.value = 'plan'
     return
   }
 
+  if (options.refresh && plan.value.length) {
+    handleRefreshRecipe()
+  } else {
+    showToast('已保存食材')
+  }
   view.value = plan.value.length ? 'plan' : 'input'
+  activeTab.value = plan.value.length ? 'foods' : 'plan'
 }
 
 function handleFoodsClose() {
@@ -488,98 +534,140 @@ function handleFoodsClose() {
     view.value = plan.value.length ? 'plan' : 'input'
   }
 }
+
+function setActiveTab(tab) {
+  activeTab.value = tab
+  nextTick(() => {
+    const content = document.querySelector('.app-content')
+    if (content) content.scrollTop = 0
+  })
+}
 </script>
 
 <template>
-  <main class="app-shell">
+  <main class="app-shell" :class="{ 'has-tabs': isAppShell }">
     <div v-if="toastMsg" class="toast-overlay">{{ toastMsg }}</div>
     <header v-if="view" class="app-header">
       <div>
         <span class="eyebrow">轻盈餐盘</span>
         <h1>减脂餐计划</h1>
       </div>
-      <div v-if="view === 'foods'" class="progress-pill">食材</div>
-      <div v-else-if="view === 'progress'" class="progress-pill">进度</div>
-      <div v-else-if="view === 'checkin'" class="progress-pill">打卡</div>
-      <div v-else-if="view !== 'plan'" class="progress-pill">{{ progress }}/3</div>
-      <div v-else class="progress-pill">餐单</div>
+      <div v-if="headerPill" class="progress-pill">{{ headerPill }}</div>
     </header>
 
     <div v-if="!view" class="loading-shell">
       <div class="loading-dot"></div>
     </div>
 
-    <Transition v-else name="slide-fade" mode="out-in">
-      <InputForm
-        v-if="view === 'input'"
-        key="input"
-        :initial-data="editMode ? params : null"
-        :edit-mode="editMode"
-        @cancel="handleCancelEdit"
-        @submit="handleInputSubmit"
-      />
-      <ScheduleConfirm
-        v-else-if="view === 'confirm'"
-        key="confirm"
-        :params="params"
-        :initial-schedule="schedule"
-        @back="view = 'recommend'"
-        @confirm="handleConfirm"
-      />
-      <RecommendView
-        v-else-if="view === 'recommend' && recommendation"
-        key="recommend"
-        :profile="params"
-        :diet-suggestion="recommendation.dietSuggestion"
-        :deficit-suggestion="recommendation.deficitSuggestion"
-        :schedule-suggestion="recommendation.scheduleSuggestion"
-        :macro-targets="recommendation.macroTargets"
-        @accept="handleRecommendAccept"
-      />
-      <section v-else-if="view === 'plan'" key="plan" class="result-stack">
+    <template v-else-if="isAppShell">
+      <section class="app-content tab-content">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
         <PlanCalendar
+          v-if="activeTab === 'plan'"
+          key="plan-tab"
           :plan="plan"
           :start-date="planMeta?.startDate"
           :plan-meta="planMeta"
-          @edit-profile="handleEditProfile"
+          :today-checked="todayChecked"
           @refresh-recipe="handleRefreshRecipe"
-          @clear-data="handleClearData"
-          @manage-foods="handleManageFoods"
-          @view-progress="handleViewProgress"
           @view-checkin="handleViewCheckin"
           @lock-meal="handleLockMeal"
           @unlock-meal="handleUnlockMeal"
           @replace-meal="handleReplaceMeal"
         />
+        <FoodPreferences
+          v-else-if="activeTab === 'foods'"
+          key="foods-tab"
+          :food-preferences="foodPrefs || defaultFoodPreferences"
+          mode="manage"
+          :show-close="false"
+          @save="handleFoodsSave"
+        />
+        <WeightProgress
+          v-else-if="activeTab === 'progress'"
+          key="progress-tab"
+          :weight-logs="weightLogs"
+          :profile="params"
+          :checkins="checkins"
+          :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
+          :start-date="planMeta?.startDate || null"
+          :show-close="false"
+          @save="handleWeightLogsSave"
+        />
+        <CheckinProgress
+          v-else-if="activeTab === 'checkin'"
+          key="checkin-tab"
+          :checkins="checkins"
+          :show-close="false"
+          @save="handleCheckinSave"
+        />
+        <ProfileView
+          v-else-if="activeTab === 'profile'"
+          key="profile-tab"
+          :profile="params"
+          :plan-meta="planMeta"
+          @edit-profile="handleEditProfile"
+          @clear-data="handleClearData"
+        />
       </section>
-      <WeightProgress
-        v-else-if="view === 'progress'"
-        key="progress"
-        :weight-logs="weightLogs"
-        :profile="params"
-        :checkins="checkins"
-        :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
-        :start-date="planMeta?.startDate || null"
-        @save="handleWeightLogsSave"
-        @close="view = 'plan'"
-      />
-      <CheckinProgress
-        v-else-if="view === 'checkin'"
-        key="checkin"
-        :checkins="checkins"
-        @save="handleCheckinSave"
-        @close="view = 'plan'"
-      />
-      <FoodPreferences
-        v-else-if="view === 'foods'"
-        key="foods"
-        :food-preferences="foodPrefs || defaultFoodPreferences"
-        :mode="foodSetupMode ? 'setup' : 'manage'"
-        @save="handleFoodsSave"
-        @close="handleFoodsClose"
-      />
-    </Transition>
+
+      <nav class="bottom-tab-bar" aria-label="主导航">
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          class="tab-button"
+          :class="{ active: activeTab === tab.value }"
+          @click="setActiveTab(tab.value)"
+        >
+          <span aria-hidden="true">{{ tab.icon }}</span>
+          <strong>{{ tab.label }}</strong>
+        </button>
+      </nav>
+    </template>
+
+    <div v-else class="app-content wizard-content">
+      <Transition name="slide-fade" mode="out-in">
+        <InputForm
+          v-if="view === 'input'"
+          key="input"
+          :initial-data="editMode ? params : null"
+          :edit-mode="editMode"
+          @cancel="handleCancelEdit"
+          @submit="handleInputSubmit"
+        />
+        <ScheduleConfirm
+          v-else-if="view === 'confirm'"
+          key="confirm"
+          :params="params"
+          :initial-schedule="schedule"
+          @back="view = 'recommend'"
+          @confirm="handleConfirm"
+        />
+        <RecommendView
+          v-else-if="view === 'recommend' && recommendation"
+          key="recommend"
+          :profile="params"
+          :diet-suggestion="recommendation.dietSuggestion"
+          :deficit-suggestion="recommendation.deficitSuggestion"
+          :schedule-suggestion="recommendation.scheduleSuggestion"
+          :macro-targets="recommendation.macroTargets"
+          @accept="handleRecommendAccept"
+        />
+        <FoodPreferences
+          v-else-if="view === 'foods'"
+          key="foods"
+          :food-preferences="foodPrefs || defaultFoodPreferences"
+          :mode="foodSetupMode ? 'setup' : 'manage'"
+          @save="handleFoodsSave"
+          @close="handleFoodsClose"
+        />
+        <section v-else key="empty-plan" class="empty-state-panel">
+          <strong>还没有餐单</strong>
+          <p>完成资料、推荐、餐次和食材设置后，将生成第 5 步餐单。</p>
+        </section>
+      </Transition>
+    </div>
   </main>
 </template>
 
@@ -625,6 +713,9 @@ function handleFoodsClose() {
   animation: toast-in 0.25s ease;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.has-tabs .toast-overlay {
+  bottom: calc(5.6rem + env(safe-area-inset-bottom));
 }
 @keyframes toast-in {
   from { opacity: 0; transform: translateX(-50%) translateY(1rem); }

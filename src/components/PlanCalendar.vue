@@ -15,14 +15,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  todayChecked: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits([
-  'editProfile',
-  'regenerate',
-  'clearData',
-  'manageFoods',
-  'viewProgress',
   'viewCheckin',
   'refreshRecipe',
   'lockMeal',
@@ -177,6 +176,20 @@ function handleReplace(mealIndex) {
       </div>
     </div>
 
+    <div class="plan-top-actions">
+      <button type="button" class="primary-action" @click="emit('refreshRecipe')">
+        刷新食谱
+      </button>
+      <button
+        v-if="!todayChecked"
+        type="button"
+        class="ghost-action"
+        @click="emit('viewCheckin')"
+      >
+        今日未打卡，去打卡
+      </button>
+    </div>
+
     <div class="day-scroll" aria-label="日期选择">
       <button
         v-for="(day, index) in plan"
@@ -228,7 +241,7 @@ function handleReplace(mealIndex) {
           <small>{{ formatMacros(meal) }}</small>
           <div class="meal-actions">
             <button type="button" class="meal-action-btn" @click="toggleLock(mealIndex)">
-              {{ meal.locked ? '🔒 已锁定' : '🔓 锁定' }}
+              {{ meal.locked ? '已锁定' : '锁定' }}
             </button>
             <button
               type="button"
@@ -243,29 +256,16 @@ function handleReplace(mealIndex) {
         </article>
       </div>
     </div>
-
-    <button type="button" class="ghost-action full-width" @click="emit('editProfile')">
-      修改资料
-    </button>
-    <button type="button" class="ghost-action full-width" @click="emit('manageFoods')">
-      调整食材
-    </button>
-    <button type="button" class="ghost-action full-width" @click="emit('viewProgress')">
-      进度记录
-    </button>
-    <button type="button" class="ghost-action full-width" @click="emit('viewCheckin')">
-      今日打卡
-    </button>
-    <button type="button" class="ghost-action full-width" @click="emit('refreshRecipe')">
-      刷新食谱
-    </button>
-    <button type="button" class="ghost-action full-width" @click="emit('clearData')">
-      清空数据
-    </button>
   </section>
 </template>
 
 <style scoped>
+.plan-top-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
 .plan-summary {
   display: flex;
   flex-direction: column;
@@ -317,21 +317,33 @@ function handleReplace(mealIndex) {
 
 .meal-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.4rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
 }
 
 .meal-action-btn {
-  background: none;
-  border: none;
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(91, 166, 111, 0.35);
+  border-radius: 999rem;
+  background: #f6fbf5;
   color: var(--green, #5ba66f);
   cursor: pointer;
   font-size: 0.78rem;
-  padding: 0.15rem 0;
+  font-weight: 900;
 }
 
 .meal-action-btn.disabled {
+  border-color: #e4e4e4;
+  background: #f7f7f7;
   color: #bbb;
   cursor: not-allowed;
+}
+
+@media (max-width: 360px) {
+  .plan-top-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -15,6 +15,10 @@ const props = defineProps({
     type: String,
     default: 'manage',
   },
+  showClose: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['save', 'close'])
@@ -79,6 +83,9 @@ const visibleDefaults = computed(() => {
 
 const sortedCustomFoods = computed(() =>
   [...localPrefs.customFoods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')),
+)
+const selectedCount = computed(() =>
+  localPrefs.selectedFoodIds.length + localPrefs.customFoods.length,
 )
 
 function isSelected(id) {
@@ -175,15 +182,29 @@ function addCustomFood() {
 }
 
 function deleteCustomFood(id) {
+  if (!confirm('删除这个自定义食材吗？')) return
   localPrefs.customFoods = localPrefs.customFoods.filter((food) => food.id !== id)
+  localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter((foodId) => foodId !== id)
 }
 
-function savePreferences() {
-  emit('save', {
+function preferencesPayload() {
+  return {
     selectedFoodIds: [...localPrefs.selectedFoodIds],
     customFoods: [...localPrefs.customFoods],
     updatedAt: localPrefs.updatedAt,
-  })
+  }
+}
+
+function savePreferences() {
+  emit('save', preferencesPayload())
+}
+
+function saveAndRefresh() {
+  emit('save', preferencesPayload(), { refresh: true })
+}
+
+function clearSelection() {
+  localPrefs.selectedFoodIds = []
 }
 
 function skipAll() {
@@ -202,8 +223,16 @@ function skipAll() {
         <p>个人可用食材池</p>
         <h2>{{ props.mode === 'setup' ? '选择可用食材' : '我的食材' }}</h2>
       </div>
-      <button type="button" class="text-action" @click="emit('close')">返回</button>
+      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
+
+    <div class="food-toolbar">
+      <span>已选 {{ selectedCount }} 项</span>
+      <button type="button" class="text-action" @click="clearSelection">清空勾选</button>
+    </div>
+    <p v-if="selectedCount === 0" class="empty-state">
+      当前没有选择食材；生成或刷新餐单时将使用默认全部食材。
+    </p>
 
     <div class="food-tabs" aria-label="食材分类">
       <button
@@ -299,8 +328,8 @@ function skipAll() {
         <button type="button" class="primary-action" @click="savePreferences">继续生成餐单</button>
       </template>
       <template v-else>
-        <button type="button" class="ghost-action" @click="emit('close')">返回</button>
-        <button type="button" class="primary-action" @click="savePreferences">保存并返回</button>
+        <button type="button" class="ghost-action" @click="savePreferences">保存</button>
+        <button type="button" class="primary-action" @click="saveAndRefresh">保存并刷新食谱</button>
       </template>
     </div>
   </section>
@@ -320,6 +349,28 @@ function skipAll() {
   gap: 1rem;
 }
 
+.food-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgba(255, 254, 251, 0.86);
+}
+
+.food-toolbar span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.food-toolbar .text-action {
+  min-height: 2rem;
+  padding: 0 0.65rem;
+}
+
 .text-action {
   flex: 0 0 auto;
   min-height: 2.25rem;
@@ -329,6 +380,17 @@ function skipAll() {
   color: var(--green-deep);
   background: rgba(255, 255, 255, 0.72);
   font-weight: 900;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.8rem;
+  background: #fff8ef;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .food-tabs {

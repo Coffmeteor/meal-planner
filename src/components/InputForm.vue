@@ -81,7 +81,7 @@ function submitForm() {
 <template>
   <form class="panel form-stack" @submit.prevent="submitForm">
     <div class="section-title">
-      <p>第一步</p>
+      <p>资料</p>
       <h2>填写身体数据</h2>
     </div>
 

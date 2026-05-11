@@ -8,6 +8,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  showClose: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 const emit = defineEmits(['save', 'close'])
@@ -138,7 +142,7 @@ async function handleDelete(id) {
         <p>执行打卡</p>
         <h2>今日打卡</h2>
       </div>
-      <button type="button" class="text-action" @click="emit('close')">返回</button>
+      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
 
     <form class="checkin-panel checkin-form" @submit.prevent="handleSave">
@@ -402,7 +406,7 @@ textarea {
 .completion-grid button,
 .toggle-button,
 .score-buttons button {
-  min-height: 2.4rem;
+  min-height: 2.65rem;
   border: 1px solid #dfe5dd;
   border-radius: 0.65rem;
   background: #fbfcfa;
@@ -532,7 +536,7 @@ textarea {
   }
 
   .score-buttons button {
-    min-height: 2rem;
+    min-height: 2.4rem;
     font-size: 0.85rem;
   }
 }

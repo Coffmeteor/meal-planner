@@ -82,7 +82,7 @@ function confirmSchedule() {
 <template>
   <section class="panel form-stack">
     <div class="section-title">
-      <p>第二步</p>
+      <p>餐次</p>
       <h2>确认进食节奏</h2>
     </div>
 
