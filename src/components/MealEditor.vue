@@ -199,9 +199,21 @@ function defaultPortionFor(food) {
 function updatePortion(index, value) {
   const food = localFoods.value[index]
   if (!food) return
-
-  const portion = roundPortionForFood(food, value)
+  if (value === '' || value === undefined || value === null) return
+  const cleaned = String(value).replace(/^0+(?=\d)/, '')
+  const num = parseFloat(cleaned)
+  if (isNaN(num) || num <= 0) return
+  const portion = roundPortionForFood(food, cleaned)
   localFoods.value[index] = scaleFood(food, portion)
+}
+
+function blurPortion(index, value) {
+  const food = localFoods.value[index]
+  if (!food) return
+  const num = parseFloat(value)
+  if (isNaN(num) || num <= 0 || value === '' || value === undefined || value === null) {
+    localFoods.value[index] = scaleFood(food, defaultPortionFor(food))
+  }
 }
 
 function removeFood(index) {
@@ -301,6 +313,7 @@ function handleSave() {
             :step="isOilOrFat(food) ? 1 : 5"
             :value="food.portion"
             @input="updatePortion(index, $event.target.value)"
+            @blur="blurPortion(index, $event.target.value)"
           >
           <span>g</span>
         </label>
