@@ -22,6 +22,12 @@ const editMode = ref(false)
 const planMeta = ref(null)
 const saveError = ref('')
 const saving = ref(false)
+const toastMsg = ref('')
+
+function showToast(msg) {
+  toastMsg.value = msg
+  setTimeout(() => { toastMsg.value = '' }, 2200)
+}
 
 const progress = computed(() => {
   const steps = { input: 1, confirm: 2, plan: 3 }
@@ -199,6 +205,7 @@ async function handleRegeneratePlan() {
 
   view.value = 'plan'
   bgSave(prof, sched, plan.value, planMeta.value)
+  showToast('✅ 已重新生成减脂计划')
 }
 
 async function handleClearData() {
@@ -219,6 +226,7 @@ async function handleClearData() {
 
 <template>
   <main class="app-shell">
+    <div v-if="toastMsg" class="toast-overlay">{{ toastMsg }}</div>
     <header v-if="view" class="app-header">
       <div>
         <span class="eyebrow">轻盈餐盘</span>
@@ -288,5 +296,25 @@ async function handleClearData() {
   font-weight: 700;
   font-size: 0.85rem;
   text-align: center;
+}
+.toast-overlay {
+  position: fixed;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2d3436;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 999;
+  animation: toast-in 0.25s ease;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(1rem); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 </style>
