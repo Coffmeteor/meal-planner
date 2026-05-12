@@ -520,10 +520,24 @@ button:focus-visible {
 }
 
 .todo-list {
-  min-height: 3.75rem;
+  display: grid;
+  gap: 0.55rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.todo-list button {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(91, 166, 111, 0.28);
+  border-radius: 0.85rem;
+  color: var(--green-deep);
+  background: #f4fbf3;
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-align: left;
 }
 
 .quick-action-grid {
@@ -546,6 +560,7 @@ button:focus-visible {
 
 .tab-page-shell {
   display: grid;
+  gap: 1rem;
   min-height: calc(100svh - 8rem);
   align-content: start;
   padding-top: 0.5rem;
@@ -556,6 +571,86 @@ button:focus-visible {
   color: var(--text);
   font-size: 1.6rem;
   font-weight: 900;
+}
+
+.tab-page-heading,
+.card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.tab-page-heading p {
+  margin: 0 0 0.2rem;
+  color: var(--green-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.compact-action {
+  width: auto;
+  min-width: 7rem;
+}
+
+.calorie-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.calorie-grid div {
+  min-width: 0;
+  padding: 0.75rem 0.65rem;
+  border-radius: 0.8rem;
+  background: #f6fbf5;
+}
+
+.calorie-grid span,
+.today-meal-row span,
+.today-meal-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.calorie-grid strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.calorie-grid strong.over {
+  color: #c0392b;
+}
+
+.today-meal-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.today-meal-row {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: #fffaf1;
+  text-align: left;
+}
+
+.today-meal-row strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.94rem;
+  line-height: 1.25;
 }
 
 .sub-page-demo {
