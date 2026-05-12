@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { deleteWeightLog, saveWeightLog } from '../storage/index.js'
+import { deleteWeightLog } from '../storage/index.js'
 import {
   analyzeWeightTrend,
   buildWeightChartData,
@@ -201,13 +201,8 @@ async function handleSave() {
     if (Number.isFinite(hip) && hip > 0) entry.hip = Math.round(hip * 10) / 10
     if (Number.isFinite(chest) && chest > 0) entry.chest = Math.round(chest * 10) / 10
     if (Number.isFinite(bodyFat) && bodyFat > 0) entry.bodyFat = Math.round(bodyFat * 10) / 10
-    const updatedLogs = await saveWeightLog(entry)
     resetForm()
-    emit('save', updatedLogs)
-    localStorage.setItem('meal-planner:last-record-save', JSON.stringify({
-      type: 'weight', date: entry.date, ts: Date.now(),
-    }))
-    setTimeout(() => window.location.reload(), 200)
+    emit('save', entry)
   } catch (e) {
     console.warn('Failed to save weight log', e)
     error.value = '保存失败，请稍后重试'

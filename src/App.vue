@@ -22,9 +22,11 @@ import {
   importAllData,
   loadCheckins,
   loadWeightLogs,
+  saveCheckin,
   saveLatestPlan,
   saveProfile,
   saveSchedule,
+  saveWeightLog,
 } from './storage/index.js'
 import {
   calculateDeficitPercent,
@@ -624,20 +626,50 @@ function handleTodayOptimize(dayIndex) {
   showToast('已优化今日热量')
 }
 
-async function handleWeightLogsSave(updatedLogs) {
-  showToast('已保存体重')
+async function handleWeightLogsSave(payload) {
+  try {
+    weightLogs.value = await saveWeightLog(payload)
+    await nextTick()
+    dataVersion.value++
+    showToast('已保存体重')
+    popPage()
+  } catch (e) {
+    showToast('保存失败')
+  }
 }
 
-async function handleCheckinSave(updated) {
-  showToast('已保存打卡')
+async function handleCheckinSave(payload) {
+  try {
+    checkins.value = await saveCheckin(payload)
+    await nextTick()
+    dataVersion.value++
+    showToast('已保存打卡')
+    popPage()
+  } catch (e) {
+    showToast('保存失败')
+  }
 }
 
-async function handleWeightLogsTabSave(updatedLogs) {
-  showToast('已保存体重')
+async function handleWeightLogsTabSave(payload) {
+  try {
+    weightLogs.value = await saveWeightLog(payload)
+    await nextTick()
+    dataVersion.value++
+    showToast('已保存体重')
+  } catch (e) {
+    showToast('保存失败')
+  }
 }
 
-async function handleCheckinTabSave(updated) {
-  showToast('已保存打卡')
+async function handleCheckinTabSave(payload) {
+  try {
+    checkins.value = await saveCheckin(payload)
+    await nextTick()
+    dataVersion.value++
+    showToast('已保存打卡')
+  } catch (e) {
+    showToast('保存失败')
+  }
 }
 
 function handleSubPageSave(payload, options) {

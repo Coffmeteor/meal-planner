@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { deleteCheckin, saveCheckin } from '../storage/index.js'
+import { deleteCheckin } from '../storage/index.js'
 import { analyzeRecentCheckins, generateCheckinAdvice } from '../utils/checkins.js'
 
 const props = defineProps({
@@ -98,7 +98,7 @@ async function handleSave() {
   saving.value = true
   error.value = ''
   try {
-    const result = await saveCheckin({
+    const payload = {
       date: form.date,
       mealCompleted: form.mealCompleted,
       ateOut: form.ateOut,
@@ -107,12 +107,8 @@ async function handleSave() {
       hungerLevel: form.hungerLevel,
       adherenceLevel: form.adherenceLevel,
       note: form.note.trim(),
-    })
-    emit('save', result)
-    localStorage.setItem('meal-planner:last-record-save', JSON.stringify({
-      type: 'checkin', date: form.date, ts: Date.now(),
-    }))
-    setTimeout(() => window.location.reload(), 200)
+    }
+    emit('save', payload)
   } catch (e) {
     console.warn('Failed to save checkin', e)
     error.value = '保存失败，请稍后重试'
