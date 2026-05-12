@@ -1,0 +1,33 @@
+name: Deploy v0.3 Preview
+
+on:
+  push:
+    branches: [v0.3-app-shell-preview]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build --base /meal-planner-v03-preview/
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.PREVIEW_DEPLOY_KEY }}
+          external_repository: Coffmeteor/meal-planner-v03-preview
+          publish_branch: gh-pages
+          publish_dir: ./dist
+          force_orphan: true
