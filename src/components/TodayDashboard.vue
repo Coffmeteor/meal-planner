@@ -27,12 +27,12 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'editMeal',
-  'editDayFood',
-  'optimizeDay',
-  'viewTodayPlan',
-  'recordWeight',
-  'checkinToday',
+  'edit-meal',
+  'edit-day-food',
+  'optimize-day',
+  'view-full-plan',
+  'record-weight',
+  'checkin-today',
 ])
 
 const today = computed(() => {
@@ -81,6 +81,17 @@ const deviationText = computed(() => {
   if (!targetCalories.value) return '--'
   return `${deviation.value > 0 ? '+' : ''}${deviation.value} kcal`
 })
+const calorieStatus = computed(() => {
+  const abs = Math.abs(deviation.value)
+  if (!targetCalories.value || abs <= 50) return '接近目标'
+  if (abs <= 150) return '略有偏差'
+  return '偏离较多'
+})
+const calorieStatusClass = computed(() => ({
+  close: !targetCalories.value || Math.abs(deviation.value) <= 50,
+  warning: targetCalories.value && Math.abs(deviation.value) > 50 && Math.abs(deviation.value) <= 150,
+  danger: targetCalories.value && Math.abs(deviation.value) > 150,
+}))
 const hasTodayWeight = computed(() =>
   props.weightLogs.some((log) => log?.date === today.value.ymd),
 )
@@ -90,16 +101,16 @@ const hasTodayCheckin = computed(() =>
 const todos = computed(() => {
   const items = []
   if (!hasTodayWeight.value) {
-    items.push({ key: 'weight', label: '记录今日体重', action: () => emit('recordWeight') })
+    items.push({ key: 'weight', label: '记录今日体重', action: () => emit('record-weight') })
   }
   if (!hasTodayCheckin.value) {
-    items.push({ key: 'checkin', label: '完成今日打卡', action: () => emit('checkinToday') })
+    items.push({ key: 'checkin', label: '完成今日打卡', action: () => emit('checkin-today') })
   }
   if (Math.abs(deviation.value) > 100) {
     items.push({
       key: 'optimize',
       label: '优化今日餐单',
-      action: () => emit('optimizeDay', todayIndex.value),
+      action: () => emit('optimize-day', todayIndex.value),
     })
   }
   return items
@@ -122,6 +133,10 @@ function mealWindow(meal, index) {
   const next = displayedMeals.value[index + 1]?.time
   if (!next) return `${start} 后`
   return `${start} - ${formatTime(next)}`
+}
+
+function openMealEditor(mealIndex) {
+  emit('edit-meal', { dayIndex: todayIndex.value, mealIndex })
 }
 </script>
 
@@ -147,31 +162,50 @@ function mealWindow(meal, index) {
           <span>偏差</span>
           <strong :class="{ over: Math.abs(deviation) > 100 }">{{ deviationText }}</strong>
         </div>
+        <div>
+          <span>状态</span>
+          <strong class="status-label" :class="calorieStatusClass">{{ calorieStatus }}</strong>
+        </div>
       </div>
     </article>
 
+    <article class="shell-card today-action-card" aria-label="今日操作">
+      <button type="button" class="primary-action" @click="emit('edit-day-food', todayIndex)">
+        编辑今日菜单
+      </button>
+      <button type="button" class="ghost-action" @click="emit('optimize-day', todayIndex)">
+        一键优化热量
+      </button>
+      <button type="button" class="text-action quiet" @click="emit('view-full-plan')">
+        查看完整餐单
+      </button>
+    </article>
+
     <article class="shell-card meals-card">
-      <div class="card-title-row">
-        <h2>今日餐单</h2>
-        <button type="button" class="text-action" @click="emit('viewTodayPlan')">查看</button>
-      </div>
+      <h2>今日餐单</h2>
       <div v-if="displayedMeals.length" class="today-meal-list">
-        <button
+        <article
           v-for="(meal, mealIndex) in displayedMeals"
           :key="`${meal.time}-${mealIndex}`"
-          type="button"
+          role="button"
+          tabindex="0"
           class="today-meal-row"
-          @click="emit('editMeal', { dayIndex: todayIndex, mealIndex })"
+          @click="openMealEditor(mealIndex)"
+          @keydown.enter.prevent="openMealEditor(mealIndex)"
+          @keydown.space.prevent="openMealEditor(mealIndex)"
         >
-          <span>{{ mealWindow(meal, mealIndex) }}</span>
+          <span class="meal-time">{{ mealWindow(meal, mealIndex) }}</span>
           <strong>{{ meal.label || meal.name }}</strong>
           <small>
             {{ formatCalories(meal.calories) }}
             <template v-if="mealFoods(meal).length">
-              · {{ mealFoods(meal).slice(0, 2).map((food) => food.name).join('、') }}
+              · {{ mealFoods(meal).slice(0, 3).map((food) => food.name).join('、') }}
             </template>
           </small>
-        </button>
+          <button type="button" class="meal-edit-chip" @click.stop="openMealEditor(mealIndex)">
+            编辑
+          </button>
+        </article>
       </div>
       <p v-else class="empty-state">今天还没有餐单。</p>
     </article>
@@ -180,21 +214,10 @@ function mealWindow(meal, index) {
       <h2>今日待办</h2>
       <ul v-if="todos.length" class="todo-list" aria-label="今日待办">
         <li v-for="todo in todos" :key="todo.key">
-          <button type="button" @click="todo.action">{{ todo.label }}</button>
+          <button type="button" @click="todo.action()">{{ todo.label }}</button>
         </li>
       </ul>
       <p v-else class="empty-state">今日记录已完成。</p>
-    </article>
-
-    <article class="shell-card">
-      <h2>快捷操作</h2>
-      <div class="quick-action-grid">
-        <button type="button" @click="emit('editDayFood', todayIndex)">编辑今日菜单</button>
-        <button type="button" @click="emit('optimizeDay', todayIndex)">一键优化热量</button>
-        <button type="button" @click="emit('viewTodayPlan')">查看今日餐单</button>
-        <button type="button" @click="emit('recordWeight')">记录体重</button>
-        <button type="button" @click="emit('checkinToday')">今日打卡</button>
-      </div>
     </article>
   </section>
 </template>

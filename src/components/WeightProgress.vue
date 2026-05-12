@@ -283,7 +283,7 @@ async function handleDelete(log) {
           :y1="y"
           :x2="320"
           :y2="y"
-          stroke="#edf0ec"
+          stroke="var(--color-border)"
           stroke-dasharray="3,3"
           stroke-width="1"
         />
@@ -291,7 +291,7 @@ async function handleDelete(log) {
           v-if="chartData.targetPoints.length"
           :points="targetPolyline"
           fill="none"
-          stroke="#bbb"
+          stroke="var(--color-muted)"
           stroke-width="1.5"
           stroke-dasharray="5,4"
         />
@@ -299,13 +299,13 @@ async function handleDelete(log) {
           v-if="chartData.movingAvgPoints.length"
           :points="maPolyline"
           fill="none"
-          stroke="#5ba66f"
+          stroke="var(--color-primary)"
           stroke-width="2"
         />
         <polyline
           :points="actualPolyline"
           fill="none"
-          stroke="#35754b"
+          stroke="var(--color-primary-deep)"
           stroke-width="2"
         />
         <circle
@@ -314,7 +314,7 @@ async function handleDelete(log) {
           :cx="toX(point.date)"
           :cy="toY(point.weight)"
           r="3"
-          fill="#35754b"
+          fill="var(--color-primary-deep)"
         />
       </svg>
       <div class="chart-legend">
@@ -386,9 +386,12 @@ async function handleDelete(log) {
       </label>
 
       <p v-if="error" class="form-error">{{ error }}</p>
-      <button type="submit" class="primary-action full-width" :disabled="saving">
-        {{ saving ? '保存中...' : '保存记录' }}
-      </button>
+      <div class="form-action-bar" :class="{ single: !showClose }">
+        <button v-if="showClose" type="button" class="ghost-action" @click="emit('close')">放弃</button>
+        <button type="submit" class="primary-action full-width" :disabled="saving">
+          {{ saving ? '保存中...' : '保存记录' }}
+        </button>
+      </div>
     </form>
 
     <div class="recent-panel">
@@ -419,7 +422,7 @@ async function handleDelete(log) {
   box-sizing: border-box;
   flex-direction: column;
   gap: 1rem;
-  padding: 0 0.5rem;
+  padding: 0 0.5rem calc(5rem + env(safe-area-inset-bottom));
 }
 
 .progress-title {
@@ -433,10 +436,10 @@ async function handleDelete(log) {
   flex: 0 0 auto;
   min-height: 2.25rem;
   padding: 0 0.8rem;
-  border: 1px solid var(--line, #dfe5dd);
-  border-radius: 0.8rem;
-  color: var(--green-deep, #35754b);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-primary-deep);
+  background: var(--color-card);
   font-weight: 900;
 }
 
@@ -445,9 +448,10 @@ async function handleDelete(log) {
 .chart-panel,
 .log-form,
 .recent-panel {
-  border-radius: 0.8rem;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(43, 54, 45, 0.08);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .summary-panel {
@@ -473,12 +477,12 @@ async function handleDelete(log) {
 .score-block > span,
 .note-field span,
 .recent-head span {
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.78rem;
 }
 
 .metric-item strong {
-  color: #223026;
+  color: var(--color-text);
   font-size: 0.98rem;
   line-height: 1.2;
 }
@@ -489,11 +493,11 @@ async function handleDelete(log) {
   justify-content: space-between;
   margin-top: 0.9rem;
   padding-top: 0.8rem;
-  border-top: 1px solid #edf0ec;
+  border-top: 1px solid var(--color-border);
 }
 
 .trend-row strong {
-  color: var(--green, #5ba66f);
+  color: var(--color-primary-deep);
 }
 
 .advice-panel {
@@ -502,7 +506,7 @@ async function handleDelete(log) {
 
 .advice-panel p {
   margin: 0.35rem 0 0;
-  color: #2f3a32;
+  color: var(--color-text);
   font-size: 0.9rem;
   line-height: 1.55;
 }
@@ -517,9 +521,9 @@ async function handleDelete(log) {
 .checkin-summary-grid strong {
   min-width: 0;
   padding: 0.55rem 0.45rem;
-  border-radius: 0.65rem;
-  background: #f6f8f4;
-  color: #223026;
+  border-radius: var(--radius-button);
+  background: #f8fafc;
+  color: var(--color-text);
   font-size: 0.78rem;
   line-height: 1.35;
   text-align: center;
@@ -532,7 +536,7 @@ async function handleDelete(log) {
 .chart-panel.chart-empty p {
   margin: 0;
   padding: 2rem 0;
-  color: #7a847d;
+  color: var(--color-muted);
   font-size: 0.88rem;
   text-align: center;
 }
@@ -542,7 +546,7 @@ async function handleDelete(log) {
 }
 
 .chart-head span {
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.78rem;
 }
 
@@ -563,7 +567,7 @@ async function handleDelete(log) {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  color: #4f5f53;
+  color: var(--color-muted);
   font-size: 0.75rem;
 }
 
@@ -572,7 +576,7 @@ async function handleDelete(log) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #35754b;
+  background: var(--color-primary-deep);
 }
 
 .legend-item .line.avg {
@@ -580,7 +584,7 @@ async function handleDelete(log) {
   width: 18px;
   height: 3px;
   border-radius: 2px;
-  background: #5ba66f;
+  background: var(--color-primary);
 }
 
 .legend-item .line.target {
@@ -614,10 +618,10 @@ input,
 textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #dfe5dd;
-  border-radius: 0.65rem;
-  background: #fbfcfa;
-  color: #223026;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  color: var(--color-text);
   font: inherit;
   padding: 0.7rem 0.75rem;
 }
@@ -640,24 +644,45 @@ textarea {
 
 .score-buttons button {
   min-height: 2.3rem;
-  border: 1px solid #dfe5dd;
-  border-radius: 0.65rem;
-  background: #fbfcfa;
-  color: #4f5f53;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  color: var(--color-muted);
   font-weight: 800;
 }
 
 .score-buttons button.active {
-  border-color: var(--green, #5ba66f);
-  background: #edf7ef;
-  color: #2f7c48;
+  border-color: var(--color-primary);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-primary-deep);
 }
 
 .form-error {
   margin: 0;
-  color: #c0392b;
+  color: var(--color-danger);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.form-action-bar {
+  position: fixed;
+  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  z-index: 21;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -1px 8px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.form-action-bar.single {
+  grid-template-columns: 1fr;
 }
 
 .recent-panel {
@@ -673,13 +698,13 @@ textarea {
 
 .recent-head h3 {
   margin: 0;
-  color: #223026;
+  color: var(--color-text);
   font-size: 1rem;
 }
 
 .empty-state {
   margin: 0;
-  color: #7a847d;
+  color: var(--color-muted);
   font-size: 0.88rem;
 }
 
@@ -689,7 +714,7 @@ textarea {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.8rem 0;
-  border-top: 1px solid #edf0ec;
+  border-top: 1px solid var(--color-border);
 }
 
 .log-item div {
@@ -700,14 +725,14 @@ textarea {
 }
 
 .log-item strong {
-  color: #223026;
+  color: var(--color-text);
   font-size: 0.92rem;
 }
 
 .log-item span,
 .log-item p {
   margin: 0;
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.8rem;
   line-height: 1.45;
   word-break: break-word;
@@ -717,7 +742,7 @@ textarea {
   flex: 0 0 auto;
   border: 0;
   background: transparent;
-  color: #c0392b;
+  color: var(--color-danger);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -748,7 +773,7 @@ button:disabled {
 
 @media (max-width: 400px) {
   .weight-progress {
-    padding: 0 0.25rem;
+    padding: 0 0.25rem calc(5rem + env(safe-area-inset-bottom));
   }
 
   .metric-grid {

@@ -59,11 +59,11 @@ const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
 
 const tabs = [
-  { value: 'foods', label: '食材', icon: '🥬' },
-  { value: 'plan', label: '餐单', icon: '🍱' },
-  { value: 'today', label: '今日', icon: '☀️' },
-  { value: 'progress', label: '进度', icon: '📈' },
-  { value: 'profile', label: '我的', icon: '🙂' },
+  { value: 'foods', label: '食材' },
+  { value: 'plan', label: '餐单' },
+  { value: 'today', label: '今日' },
+  { value: 'progress', label: '进度' },
+  { value: 'profile', label: '我的' },
 ]
 
 const titleMap = {
@@ -892,7 +892,7 @@ function subPageProps(page) {
           @edit-meal="handleEditMeal"
           @edit-day-food="handleEditDayFood"
           @optimize-day="handleTodayOptimize"
-          @view-today-plan="handleViewTodayPlan"
+          @view-full-plan="handleViewTodayPlan"
           @record-weight="pushPage('weightEntry')"
           @checkin-today="pushPage('checkinForm')"
           @refresh-recipe="handleRefreshRecipe"

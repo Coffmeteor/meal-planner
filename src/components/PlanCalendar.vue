@@ -114,7 +114,7 @@ const macroStyle = computed(() => {
   const carbsEnd = proteinEnd + (carbsCalories / total) * 100
 
   return {
-    background: `conic-gradient(#5ba66f 0 ${proteinEnd}%, #f0a24a ${proteinEnd}% ${carbsEnd}%, #e7c65a ${carbsEnd}% 100%)`,
+    background: `conic-gradient(var(--color-primary) 0 ${proteinEnd}%, var(--color-warning) ${proteinEnd}% ${carbsEnd}%, #eab308 ${carbsEnd}% 100%)`,
   }
 })
 
@@ -384,9 +384,10 @@ function handleEditDayFood() {
   overflow: hidden;
   gap: 0.4rem;
   padding: 0.7rem 0.8rem;
-  border-radius: 0.75rem;
-  background: #f5f6f4;
-  color: #2f3a32;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: var(--color-text);
 }
 
 .summary-row {
@@ -405,7 +406,7 @@ function handleEditDayFood() {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #68736b;
+  color: var(--color-muted);
 }
 
 .summary-row strong {
@@ -413,7 +414,7 @@ function handleEditDayFood() {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #223026;
+  color: var(--color-text);
   font-weight: 800;
   text-align: right;
 }
@@ -424,7 +425,7 @@ function handleEditDayFood() {
 }
 
 .macro-summary span {
-  color: #7a847d;
+  color: var(--color-muted);
 }
 
 .day-title-row {
@@ -443,10 +444,10 @@ function handleEditDayFood() {
   flex: 0 0 auto;
   min-height: 2.25rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--line, #eadfca);
+  border: 1px solid var(--color-border);
   border-radius: 999rem;
-  background: #fffdf7;
-  color: var(--green-deep, #35754b);
+  background: var(--color-card);
+  color: var(--color-primary-deep);
   font-size: 0.74rem;
   font-weight: 900;
 }
@@ -464,42 +465,42 @@ function handleEditDayFood() {
   display: grid;
   gap: 0.3rem;
   padding: 0.75rem 0.85rem;
-  border-radius: 0.9rem;
-  background: #f6fbf5;
-  color: #405044;
+  border-radius: var(--radius-card);
+  background: #f8fafc;
+  color: var(--color-text);
   line-height: 1.4;
 }
 
 .day-deviation-card span,
 .day-deviation-card small {
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .day-deviation-card strong,
 .deviation-badge {
-  color: #8a5a00;
+  color: var(--color-warning);
   font-size: 0.82rem;
 }
 
 .day-deviation-card strong.close {
-  color: var(--green-deep, #35754b);
+  color: var(--color-primary-deep);
 }
 
 .day-deviation-card strong.far {
-  color: #c0392b;
+  color: var(--color-danger);
 }
 
 .meal-steps {
   font-size: 0.78rem;
-  color: #666;
+  color: var(--color-muted);
   margin-top: 0.3rem;
   line-height: 1.4;
 }
 
 .meal-locked {
-  border-left: 3px solid var(--green, #5ba66f);
+  border-left: 3px solid var(--color-primary);
 }
 
 .edited-badge {
@@ -509,8 +510,8 @@ function handleEditDayFood() {
   margin-left: 0.35rem;
   padding: 0 0.45rem;
   border-radius: 999rem;
-  background: #fff0d8;
-  color: #8a5a00;
+  background: #fffbeb;
+  color: var(--color-warning);
   font-size: 0.68rem;
   font-weight: 900;
   vertical-align: middle;
@@ -530,15 +531,15 @@ function handleEditDayFood() {
   gap: 0.75rem;
   padding: 0.42rem 0.55rem;
   border-radius: 0.65rem;
-  background: #fff8ef;
-  color: var(--text, #3f3b32);
+  background: #f8fafc;
+  color: var(--color-text);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .meal-food-list small {
   flex: 0 0 auto;
-  color: var(--muted, #817867);
+  color: var(--color-muted);
 }
 
 .meal-actions {
@@ -551,10 +552,10 @@ function handleEditDayFood() {
 .meal-action-btn {
   min-height: 2.25rem;
   padding: 0 0.85rem;
-  border: 1px solid rgba(91, 166, 111, 0.35);
+  border: 1px solid rgba(34, 197, 94, 0.28);
   border-radius: 999rem;
-  background: #f6fbf5;
-  color: var(--green, #5ba66f);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--color-primary-deep);
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 900;
@@ -563,7 +564,7 @@ function handleEditDayFood() {
 .meal-action-btn.disabled {
   border-color: #e4e4e4;
   background: #f7f7f7;
-  color: #bbb;
+  color: var(--color-muted);
   cursor: not-allowed;
 }
 

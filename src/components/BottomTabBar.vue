@@ -23,7 +23,6 @@ const emit = defineEmits(['change'])
       :class="{ active: activeTab === tab.value, center: tab.value === 'today' }"
       @click="emit('change', tab.value)"
     >
-      <span class="tab-icon" aria-hidden="true">{{ tab.icon }}</span>
       <strong>{{ tab.label }}</strong>
     </button>
   </nav>
