@@ -215,7 +215,8 @@ async function loadAppState() {
       ? buildPlanMeta(latestPlan, rawLatestPlan, loadedEatingWindow)
       : null
 
-    activeTab.value = 'today'
+    const savedTab = readJsonFromLocalStorage('activeTab')
+    activeTab.value = (savedTab && tabs.some((t) => t.value === savedTab)) ? savedTab : 'today'
     clearPageStack()
     view.value = plan.value.length ? 'shell' : 'input'
   } catch (error) {
@@ -624,37 +625,31 @@ function handleTodayOptimize(dayIndex) {
 }
 
 async function handleWeightLogsSave(updatedLogs) {
-  await nextTick()
-  weightLogs.value = await loadWeightLogs()
-  await nextTick()
-  dataVersion.value++
   showToast('已保存体重')
-  popPage()
+  await new Promise((r) => setTimeout(r, 300))
+  lsSave('activeTab', activeTab.value)
+  window.location.reload()
 }
 
 async function handleCheckinSave(updated) {
-  await nextTick()
-  checkins.value = await loadCheckins()
-  await nextTick()
-  dataVersion.value++
   showToast('已保存打卡')
-  popPage()
+  await new Promise((r) => setTimeout(r, 300))
+  lsSave('activeTab', activeTab.value)
+  window.location.reload()
 }
 
 async function handleWeightLogsTabSave(updatedLogs) {
-  await nextTick()
-  weightLogs.value = await loadWeightLogs()
-  await nextTick()
-  dataVersion.value++
   showToast('已保存体重')
+  await new Promise((r) => setTimeout(r, 300))
+  lsSave('activeTab', activeTab.value)
+  window.location.reload()
 }
 
 async function handleCheckinTabSave(updated) {
-  await nextTick()
-  checkins.value = await loadCheckins()
-  await nextTick()
-  dataVersion.value++
   showToast('已保存打卡')
+  await new Promise((r) => setTimeout(r, 300))
+  lsSave('activeTab', activeTab.value)
+  window.location.reload()
 }
 
 function handleSubPageSave(payload, options) {
