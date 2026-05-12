@@ -112,6 +112,23 @@ const searchGroups = computed(() => {
 const selectedCount = computed(() =>
   localPrefs.selectedFoodIds.length + localPrefs.customFoods.length,
 )
+const isDirty = computed(() => {
+  const currentSelected = [...localPrefs.selectedFoodIds].sort()
+  const savedSelected = Array.isArray(props.foodPreferences.selectedFoodIds)
+    ? [...props.foodPreferences.selectedFoodIds].sort()
+    : []
+  const currentCustom = [...localPrefs.customFoods].sort((a, b) =>
+    String(a.id).localeCompare(String(b.id)),
+  )
+  const savedCustom = Array.isArray(props.foodPreferences.customFoods)
+    ? [...props.foodPreferences.customFoods].sort((a, b) =>
+      String(a.id).localeCompare(String(b.id)),
+    )
+    : []
+
+  return JSON.stringify(currentSelected) !== JSON.stringify(savedSelected)
+    || JSON.stringify(currentCustom) !== JSON.stringify(savedCustom)
+})
 
 function isSelected(id) {
   return localPrefs.selectedFoodIds.includes(id)
@@ -267,6 +284,12 @@ function skipAll() {
     updatedAt: new Date().toISOString(),
   })
 }
+
+defineExpose({
+  selectedCount,
+  isDirty,
+  savePreferences,
+})
 </script>
 
 <template>
@@ -276,11 +299,15 @@ function skipAll() {
         <p>个人可用食材池</p>
         <h2>{{ props.mode === 'setup' ? '选择可用食材' : '我的食材' }}</h2>
       </div>
+      <span v-if="isDirty" class="dirty-indicator">未保存更改</span>
       <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
 
     <div class="food-toolbar">
-      <span>已选 {{ selectedCount }} 项</span>
+      <span>
+        已选 {{ selectedCount }} 项
+        <em v-if="isDirty">未保存更改</em>
+      </span>
       <button type="button" class="text-action" @click="clearSelection">清空勾选</button>
     </div>
     <p v-if="selectedCount === 0" class="empty-state">
@@ -420,6 +447,10 @@ function skipAll() {
     </div>
 
     <div class="food-actions">
+      <span class="food-actions-count">
+        已选 {{ selectedCount }} 项
+        <em v-if="isDirty">未保存更改</em>
+      </span>
       <template v-if="props.mode === 'setup'">
         <button type="button" class="ghost-action" @click="skipAll">跳过，使用全部食材</button>
         <button type="button" class="primary-action" @click="savePreferences">继续生成餐单</button>
@@ -444,6 +475,23 @@ function skipAll() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.food-title > div {
+  min-width: 0;
+}
+
+.dirty-indicator {
+  min-height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  border-radius: 999rem;
+  color: #8a5a00;
+  background: #fff0d8;
+  font-size: 0.76rem;
+  font-weight: 900;
 }
 
 .food-toolbar {
@@ -458,9 +506,18 @@ function skipAll() {
 }
 
 .food-toolbar span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 900;
+}
+
+.food-toolbar em,
+.food-actions-count em {
+  color: #8a5a00;
+  font-style: normal;
 }
 
 .food-toolbar .text-action {
@@ -566,6 +623,12 @@ function skipAll() {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+}
+
+.food-actions-count {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .custom-form {

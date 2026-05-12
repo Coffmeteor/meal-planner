@@ -156,6 +156,9 @@ button:disabled {
 
 .panel {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid rgba(234, 223, 202, 0.8);
   border-radius: 1.2rem;
   background: rgba(255, 254, 251, 0.92);
@@ -184,6 +187,45 @@ button:disabled {
 
 .plan-view {
   gap: 0.9rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.plan-detail {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.plan-summary,
+.summary-row {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.summary-row span,
+.summary-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-top-actions > * {
+  min-width: 0;
+}
+
+.day-title-actions {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.day-title-row > div:first-child {
+  min-width: 0;
 }
 
 .section-title h2 {
@@ -558,11 +600,129 @@ button:focus-visible {
   font-weight: 900;
 }
 
+.progress-page {
+  padding-bottom: 0.5rem;
+}
+
+.progress-dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.progress-dashboard-actions button {
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0 0.65rem;
+  font-size: 0.86rem;
+}
+
+.progress-dashboard-card {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(234, 223, 202, 0.9);
+  border-radius: 0.95rem;
+  background: rgba(255, 254, 251, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.progress-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.progress-card-head > div {
+  min-width: 0;
+}
+
+.progress-card-head p {
+  margin: 0 0 0.25rem;
+  color: var(--green-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.progress-card-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.progress-card-head > span {
+  flex: 0 1 auto;
+  min-height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 0.6rem;
+  border-radius: 999rem;
+  color: var(--green-deep);
+  background: #edf7ed;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.progress-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.progress-stat-grid div {
+  min-width: 0;
+  padding: 0.75rem 0.55rem;
+  border-radius: 0.8rem;
+  background: #fff8ef;
+  text-align: center;
+}
+
+.progress-stat-grid span,
+.progress-stat-grid strong {
+  display: block;
+}
+
+.progress-stat-grid span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.progress-stat-grid strong {
+  margin-top: 0.18rem;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.progress-advice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.execution-review-card .progress-stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .tab-page-shell {
   display: grid;
   gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: calc(100svh - 8rem);
   align-content: start;
+  overflow-x: hidden;
   padding-top: 0.5rem;
 }
 
@@ -715,6 +875,44 @@ button:focus-visible {
   color: var(--green-deep);
   background: rgba(255, 255, 255, 0.72);
   font-weight: 900;
+}
+
+.food-save-bar {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(234, 223, 202, 0.92);
+  border-radius: 0.85rem;
+  background: rgba(255, 254, 251, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+
+.food-save-bar span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.food-save-bar em {
+  color: #8a5a00;
+  font-style: normal;
+}
+
+.food-save-bar .primary-action {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 5.5rem;
+  min-height: 2.35rem;
 }
 
 .food-tabs {
@@ -1685,9 +1883,18 @@ button:focus-visible {
   transform: translateY(-0.5rem);
 }
 
-@media (max-width: 22rem) {
+@media (max-width: 24rem) {
   .app-shell {
     padding-inline: 0.75rem;
+  }
+
+  .progress-dashboard-actions,
+  .progress-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-review-card .progress-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .macro-card {

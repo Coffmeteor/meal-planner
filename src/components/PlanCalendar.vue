@@ -355,15 +355,33 @@ function handleEditDayFood() {
 </template>
 
 <style scoped>
+.plan-view,
+.plan-detail {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
 .plan-top-actions {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: 0.65rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.plan-top-actions > * {
+  min-width: 0;
 }
 
 .plan-summary {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   gap: 0.4rem;
   padding: 0.7rem 0.8rem;
   border-radius: 0.75rem;
@@ -375,19 +393,29 @@ function handleEditDayFood() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   gap: 0.75rem;
   font-size: 0.85rem;
   line-height: 1.35;
 }
 
 .summary-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: #68736b;
 }
 
 .summary-row strong {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: #223026;
   font-weight: 800;
+  text-align: right;
 }
 
 .macro-summary {
@@ -403,7 +431,12 @@ function handleEditDayFood() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
   gap: 0.75rem;
+}
+
+.day-title-row > div:first-child {
+  min-width: 0;
 }
 
 .day-refresh-btn {
@@ -420,9 +453,10 @@ function handleEditDayFood() {
 
 .day-title-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
   gap: 0.45rem;
 }
 
