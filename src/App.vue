@@ -626,30 +626,18 @@ function handleTodayOptimize(dayIndex) {
 
 async function handleWeightLogsSave(updatedLogs) {
   showToast('已保存体重')
-  await new Promise((r) => setTimeout(r, 300))
-  lsSave('activeTab', activeTab.value)
-  window.location.reload()
 }
 
 async function handleCheckinSave(updated) {
   showToast('已保存打卡')
-  await new Promise((r) => setTimeout(r, 300))
-  lsSave('activeTab', activeTab.value)
-  window.location.reload()
 }
 
 async function handleWeightLogsTabSave(updatedLogs) {
   showToast('已保存体重')
-  await new Promise((r) => setTimeout(r, 300))
-  lsSave('activeTab', activeTab.value)
-  window.location.reload()
 }
 
 async function handleCheckinTabSave(updated) {
   showToast('已保存打卡')
-  await new Promise((r) => setTimeout(r, 300))
-  lsSave('activeTab', activeTab.value)
-  window.location.reload()
 }
 
 function handleSubPageSave(payload, options) {

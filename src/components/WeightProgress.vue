@@ -204,6 +204,10 @@ async function handleSave() {
     const updatedLogs = await saveWeightLog(entry)
     resetForm()
     emit('save', updatedLogs)
+    localStorage.setItem('meal-planner:last-record-save', JSON.stringify({
+      type: 'weight', date: entry.date, ts: Date.now(),
+    }))
+    setTimeout(() => window.location.reload(), 200)
   } catch (e) {
     console.warn('Failed to save weight log', e)
     error.value = '保存失败，请稍后重试'

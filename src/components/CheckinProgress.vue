@@ -109,6 +109,10 @@ async function handleSave() {
       note: form.note.trim(),
     })
     emit('save', result)
+    localStorage.setItem('meal-planner:last-record-save', JSON.stringify({
+      type: 'checkin', date: form.date, ts: Date.now(),
+    }))
+    setTimeout(() => window.location.reload(), 200)
   } catch (e) {
     console.warn('Failed to save checkin', e)
     error.value = '保存失败，请稍后重试'
