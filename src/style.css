@@ -10,6 +10,10 @@
   --orange: #f0a24a;
   --orange-soft: #fff0d8;
   --yellow: #e7c65a;
+  --color-bg: var(--bg);
+  --color-card: var(--panel);
+  --color-muted: var(--muted);
+  --radius-card: 1.2rem;
   --shadow: 0 0.75rem 1.75rem rgba(83, 67, 39, 0.12);
   --shadow-soft: 0 0.35rem 1rem rgba(83, 67, 39, 0.08);
   font-family:
@@ -67,8 +71,12 @@ button:disabled {
 }
 
 .app-shell.has-tabs {
-  height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: 100svh;
   padding-bottom: 0;
+}
+
+.app-shell.has-top-bar {
+  padding-top: 0;
 }
 
 .app-header {
@@ -91,6 +99,15 @@ button:disabled {
   overflow-y: auto;
   padding-bottom: calc(var(--nav-h, 4.3rem) + env(safe-area-inset-bottom) + 1rem);
   scrollbar-width: none;
+}
+
+.shell-content {
+  padding-bottom: calc(var(--nav-h, 4.6rem) + env(safe-area-inset-bottom) + 1rem);
+}
+
+.sub-page-content {
+  padding-top: 1rem;
+  padding-bottom: 1.25rem;
 }
 
 .tab-content::-webkit-scrollbar {
@@ -328,21 +345,22 @@ button:focus-visible {
 }
 
 .bottom-tab-bar {
-  --nav-h: 4.3rem;
+  --nav-h: 4.6rem;
   position: fixed;
-  right: max(0px, calc((100vw - 30rem) / 2));
+  right: auto;
   bottom: 0;
-  left: max(0px, calc((100vw - 30rem) / 2));
+  left: 50%;
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.2rem;
-  width: min(100vw, 30rem);
+  width: min(100%, 30rem);
   margin: 0 auto;
   padding: 0.45rem 0.55rem calc(0.45rem + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(234, 223, 202, 0.9);
   background: rgba(255, 254, 251, 0.96);
   box-shadow: 0 -0.5rem 1.5rem rgba(83, 67, 39, 0.1);
+  transform: translateX(-50%);
 }
 
 .tab-button {
@@ -354,17 +372,20 @@ button:focus-visible {
   border-radius: 0.75rem;
   color: var(--muted);
   background: transparent;
+  transition:
+    color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
 }
 
-.tab-button span {
+.tab-icon {
   display: grid;
   place-items: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  border: 1px solid rgba(129, 120, 103, 0.25);
-  border-radius: 999rem;
-  font-size: 0.72rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 1.05rem;
   font-weight: 900;
+  line-height: 1;
 }
 
 .tab-button strong {
@@ -376,13 +397,14 @@ button:focus-visible {
 
 .tab-button.active {
   color: var(--green-deep);
-  background: #edf7ed;
+  background: rgba(237, 247, 237, 0.92);
 }
 
-.tab-button.active span {
-  border-color: rgba(91, 166, 111, 0.5);
-  color: #fff;
-  background: var(--green);
+.tab-button.center.active {
+  border: 1px solid rgba(91, 166, 111, 0.28);
+  border-radius: 999rem;
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-0.12rem);
 }
 
 .empty-state-panel {
@@ -398,6 +420,153 @@ button:focus-visible {
 
 .empty-state-panel strong {
   color: var(--text);
+}
+
+.app-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  align-items: center;
+  min-height: 3.75rem;
+  margin: 0 -1rem;
+  padding: env(safe-area-inset-top) 1rem 0;
+  border-bottom: 1px solid rgba(234, 223, 202, 0.86);
+  background: rgba(255, 248, 239, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.app-top-bar h1 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.top-back-button,
+.top-bar-spacer {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.top-back-button {
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  color: var(--green-deep);
+  background: transparent;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.today-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.today-hero {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.45rem 0.1rem 0.15rem;
+}
+
+.today-hero p,
+.sub-page-kicker {
+  margin: 0;
+  color: var(--green-deep);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.today-hero h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.shell-card {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(234, 223, 202, 0.85);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.shell-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.empty-card-content {
+  min-height: 3.75rem;
+  border: 1px dashed rgba(129, 120, 103, 0.22);
+  border-radius: 0.9rem;
+  background: rgba(255, 248, 239, 0.55);
+}
+
+.todo-list {
+  min-height: 3.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.quick-action-grid button {
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  color: var(--green-deep);
+  background: #fffaf1;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.tab-page-shell {
+  display: grid;
+  min-height: calc(100svh - 8rem);
+  align-content: start;
+  padding-top: 0.5rem;
+}
+
+.tab-page-shell h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+.sub-page-demo {
+  margin-top: 0;
+}
+
+.sub-page-demo p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .day-food-editor,
