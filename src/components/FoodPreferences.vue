@@ -27,39 +27,13 @@ const tabs = [
   { value: 'all', label: FOOD_CATEGORY_LABELS.all },
   ...FOOD_CATEGORY_OPTIONS,
 ]
-const mealFitByCategory = {
-  protein: ['breakfast', 'lunch', 'dinner', 'snack'],
-  carb: ['breakfast', 'lunch', 'dinner'],
-  vegetable: ['lunch', 'dinner', 'snack'],
-  fat: ['snack'],
-  fruit: ['snack'],
-  dairy: ['breakfast', 'snack'],
-}
-const defaultPortionByCategory = {
-  protein: 120,
-  carb: 150,
-  vegetable: 180,
-  fat: 15,
-  fruit: 150,
-  dairy: 250,
-}
 
 const activeCategory = ref('all')
-const showForm = ref(false)
-const error = ref('')
 const searchQuery = ref('')
 const localPrefs = reactive({
   selectedFoodIds: [],
   customFoods: [],
   updatedAt: null,
-})
-const form = reactive({
-  name: '',
-  category: 'protein',
-  calories: '',
-  protein: '',
-  carbs: '',
-  fat: '',
 })
 
 watch(
@@ -74,17 +48,14 @@ watch(
   { immediate: true },
 )
 
-const visibleDefaults = computed(() => {
+const visibleFoods = computed(() => {
+  const allFoods = [...DEFAULT_FOODS, ...localPrefs.customFoods]
   const foods = activeCategory.value === 'all'
-    ? DEFAULT_FOODS
-    : DEFAULT_FOODS.filter((food) => food.category === activeCategory.value)
+    ? allFoods
+    : allFoods.filter((food) => food.category === activeCategory.value)
 
   return [...foods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 })
-
-const sortedCustomFoods = computed(() =>
-  [...localPrefs.customFoods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')),
-)
 const normalizedSearch = computed(() => searchQuery.value.trim().toLowerCase())
 const isSearching = computed(() => normalizedSearch.value.length > 0)
 const searchGroups = computed(() => {
@@ -151,93 +122,6 @@ function clearAllFoods() {
   localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter(
     (id) => !defaultIds.has(id),
   )
-}
-
-function categoryAverages(category) {
-  const foods = DEFAULT_FOODS.filter((food) => food.category === category)
-  const totals = foods.reduce(
-    (sum, food) => ({
-      calories: sum.calories + food.per100g.calories,
-      protein: sum.protein + food.per100g.protein,
-      carbs: sum.carbs + food.per100g.carbs,
-      fat: sum.fat + food.per100g.fat,
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  )
-  const count = Math.max(foods.length, 1)
-
-  return {
-    calories: Math.round(totals.calories / count),
-    protein: Number((totals.protein / count).toFixed(1)),
-    carbs: Number((totals.carbs / count).toFixed(1)),
-    fat: Number((totals.fat / count).toFixed(1)),
-  }
-}
-
-function numericValue(value) {
-  if (value === '' || value === null || value === undefined) return null
-  const number = Number(value)
-  return Number.isFinite(number) && number >= 0 ? number : null
-}
-
-function resetForm() {
-  form.name = ''
-  form.category = 'protein'
-  form.calories = ''
-  form.protein = ''
-  form.carbs = ''
-  form.fat = ''
-  error.value = ''
-}
-
-function addCustomFood() {
-  const name = form.name.trim()
-  if (!name) {
-    error.value = '请输入食材名称'
-    return
-  }
-  if (!form.category) {
-    error.value = '请选择分类'
-    return
-  }
-
-  const values = {
-    calories: numericValue(form.calories),
-    protein: numericValue(form.protein),
-    carbs: numericValue(form.carbs),
-    fat: numericValue(form.fat),
-  }
-  const averages = categoryAverages(form.category)
-  const isComplete = Object.values(values).every((value) => value !== null)
-  const per100g = {
-    calories: values.calories ?? averages.calories,
-    protein: values.protein ?? averages.protein,
-    carbs: values.carbs ?? averages.carbs,
-    fat: values.fat ?? averages.fat,
-  }
-
-  localPrefs.customFoods = [
-    ...localPrefs.customFoods,
-    {
-      id: `custom-${Date.now()}`,
-      name,
-      category: form.category,
-      source: isComplete ? 'custom' : 'estimated',
-      per100g,
-      mealFit: mealFitByCategory[form.category] || ['lunch', 'dinner'],
-      tags: [FOOD_CATEGORY_LABELS[form.category]],
-      defaultPortion: defaultPortionByCategory[form.category] || 100,
-      unit: form.category === 'dairy' ? 'ml' : 'g',
-    },
-  ]
-  showForm.value = false
-  resetForm()
-}
-
-function deleteCustomFood(id) {
-  if (!confirm('删除这个自定义食材吗？')) return
-  localPrefs.customFoods = localPrefs.customFoods.filter((food) => food.id !== id)
-  localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter((foodId) => foodId !== id)
 }
 
 function preferencesPayload() {
@@ -343,81 +227,30 @@ function skipAll() {
 
     <template v-else>
       <div class="food-grid">
-        <button
-          v-for="food in visibleDefaults"
+        <template
+          v-for="food in visibleFoods"
           :key="food.id"
-          type="button"
-          class="food-card"
-          :class="{ selected: isSelected(food.id) }"
-          @click="toggleFood(food.id)"
         >
-          <span>{{ food.name }}</span>
-          <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
-        </button>
+          <button
+            v-if="food.source !== 'custom' && !String(food.id).startsWith('custom-')"
+            type="button"
+            class="food-card"
+            :class="{ selected: isSelected(food.id) }"
+            @click="toggleFood(food.id)"
+          >
+            <span>{{ food.name }}</span>
+            <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+          </button>
+          <article v-else class="food-card food-card-static selected">
+            <span>
+              {{ food.name }}
+              <small class="food-card-meta">{{ categoryLabel(food) }} · 自定义</small>
+            </span>
+            <i>✓</i>
+          </article>
+        </template>
       </div>
     </template>
-
-    <div class="custom-section">
-      <button type="button" class="ghost-action" @click="showForm = !showForm">
-        + 新增自定义食材
-      </button>
-
-      <div v-if="showForm" class="custom-form">
-        <label>
-          <span>名称</span>
-          <input v-model="form.name" type="text" placeholder="例如 鸡肉丸" />
-        </label>
-        <label>
-          <span>分类</span>
-          <select v-model="form.category">
-            <option
-              v-for="option in FOOD_CATEGORY_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-        <div class="macro-inputs">
-          <label>
-            <span>热量</span>
-            <input v-model="form.calories" type="number" min="0" inputmode="decimal" />
-          </label>
-          <label>
-            <span>蛋白</span>
-            <input v-model="form.protein" type="number" min="0" inputmode="decimal" />
-          </label>
-          <label>
-            <span>碳水</span>
-            <input v-model="form.carbs" type="number" min="0" inputmode="decimal" />
-          </label>
-          <label>
-            <span>脂肪</span>
-            <input v-model="form.fat" type="number" min="0" inputmode="decimal" />
-          </label>
-        </div>
-        <p class="form-hint">不填完整将用同类平均值估算</p>
-        <p v-if="error" class="form-error">{{ error }}</p>
-        <button type="button" class="primary-action" @click="addCustomFood">保存</button>
-      </div>
-
-      <div v-if="!isSearching && sortedCustomFoods.length" class="custom-list">
-        <article v-for="food in sortedCustomFoods" :key="food.id" class="custom-food">
-          <div>
-            <strong>{{ food.name }}</strong>
-            <span>
-              {{ FOOD_CATEGORY_LABELS[food.category] }}
-              <em v-if="food.source === 'estimated'">估算</em>
-            </span>
-            <small v-if="food.source === 'estimated'">
-              该食材营养为估算值，仅用于粗略规划
-            </small>
-          </div>
-          <button type="button" @click="deleteCustomFood(food.id)">删除</button>
-        </article>
-      </div>
-    </div>
 
     <div class="food-actions">
       <template v-if="props.mode === 'setup'">

@@ -1,7 +1,8 @@
 <script setup>
 import PlanCalendar from './PlanCalendar.vue'
+import { pushPage } from '../stores/navigationStore.js'
 
-defineProps({
+const props = defineProps({
   plan: {
     type: Array,
     required: true,
@@ -34,6 +35,18 @@ defineEmits([
   'unlockMeal',
   'replaceMeal',
 ])
+
+function openMealEditor({ dayIndex, mealIndex }) {
+  pushPage('mealEditor', {
+    dayIndex,
+    mealIndex,
+    mealData: props.plan[dayIndex]?.meals?.[mealIndex] || null,
+  })
+}
+
+function openDayFoodEditor(dayIndex) {
+  pushPage('dayFoodEditor', { dayIndex })
+}
 </script>
 
 <template>
@@ -47,8 +60,8 @@ defineEmits([
       @view-checkin="$emit('viewCheckin')"
       @refresh-recipe="$emit('refreshRecipe')"
       @refresh-day="$emit('refreshDay', $event)"
-      @edit-meal="$emit('editMeal', $event)"
-      @edit-day-food="$emit('editDayFood', $event)"
+      @edit-meal="openMealEditor"
+      @edit-day-food="openDayFoodEditor"
       @lock-meal="$emit('lockMeal', $event)"
       @unlock-meal="$emit('unlockMeal', $event)"
       @replace-meal="$emit('replaceMeal', $event)"

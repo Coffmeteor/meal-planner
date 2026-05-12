@@ -4,7 +4,6 @@ import {
   FOOD_CATEGORY_LABELS,
   FOOD_CATEGORY_OPTIONS,
 } from '../utils/foodMeta.js'
-import { formatDate } from '../utils/helpers.js'
 import { mealFoods } from '../utils/mealDisplay.js'
 
 const props = defineProps({
@@ -156,14 +155,6 @@ function handleSave() {
 
 <template>
   <section class="day-food-editor">
-    <div class="section-title compact food-title">
-      <div>
-        <p>{{ formatDate(day.date) }}</p>
-        <h2>编辑当天食材</h2>
-      </div>
-      <button type="button" class="text-action" @click="emit('cancel')">返回</button>
-    </div>
-
     <div class="day-food-toolbar">
       <span>已选 {{ selectedCount }} 项</span>
       <div>

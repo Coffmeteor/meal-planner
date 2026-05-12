@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { formatTime } from '../utils/helpers.js'
 import { normalizeEditedMeal } from '../utils/mealDisplay.js'
 
 const props = defineProps({
@@ -281,14 +280,6 @@ function handleSave() {
 
 <template>
   <section class="meal-editor">
-    <div class="meal-editor-head">
-      <button type="button" class="meal-editor-back" @click="emit('cancelEdit')">返回</button>
-      <div>
-        <span>{{ formatTime(meal.time) }}</span>
-        <h2>{{ meal.name }}</h2>
-      </div>
-    </div>
-
     <div class="meal-editor-summary panel">
       <div class="calorie-line">
         <span>目标: {{ Math.round(mealTargetCalories) }} kcal</span>

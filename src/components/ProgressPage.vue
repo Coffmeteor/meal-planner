@@ -1,6 +1,7 @@
 <script setup>
 import CheckinProgress from './CheckinProgress.vue'
 import WeightProgress from './WeightProgress.vue'
+import { pushPage } from '../stores/navigationStore.js'
 
 defineProps({
   weightLogs: {
@@ -30,6 +31,10 @@ defineEmits(['saveWeightLogs', 'saveCheckins'])
 
 <template>
   <section class="tab-page progress-tab-page">
+    <div class="progress-actions">
+      <button type="button" class="primary-action" @click="pushPage('weightEntry')">记录体重</button>
+      <button type="button" class="ghost-action" @click="pushPage('checkinForm')">今日打卡</button>
+    </div>
     <WeightProgress
       :weight-logs="weightLogs"
       :profile="profile"
@@ -46,3 +51,12 @@ defineEmits(['saveWeightLogs', 'saveCheckins'])
     />
   </section>
 </template>
+
+<style scoped>
+.progress-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+</style>

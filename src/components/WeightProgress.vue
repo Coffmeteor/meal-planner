@@ -1,6 +1,6 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import { deleteWeightLog, saveWeightLog } from '../storage/index.js'
+import { computed, ref } from 'vue'
+import { deleteWeightLog } from '../storage/index.js'
 import {
   analyzeWeightTrend,
   buildWeightChartData,
@@ -38,13 +38,6 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'close'])
 
-const form = reactive({
-  date: todayYmd(),
-  weight: '',
-  hungerLevel: null,
-  adherenceLevel: null,
-  note: '',
-})
 const error = ref('')
 const saving = ref(false)
 
@@ -106,14 +99,6 @@ const targetPolyline = computed(() =>
 )
 const gridLines = computed(() => [0, 1, 2].map((index) => 140 - (index / 2) * 120))
 
-function todayYmd() {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function formatKg(value) {
   const number = Number(value)
   return Number.isFinite(number) ? `${Math.round(number * 10) / 10} kg` : '--'
@@ -146,53 +131,6 @@ function toY(weight) {
   const { minY, maxY } = chartData.value
   const range = maxY - minY || 1
   return 140 - ((weight - minY) / range) * 120
-}
-
-function setScore(field, value) {
-  form[field] = form[field] === value ? null : value
-}
-
-function resetForm() {
-  form.date = todayYmd()
-  form.weight = ''
-  form.hungerLevel = null
-  form.adherenceLevel = null
-  form.note = ''
-  error.value = ''
-}
-
-async function handleSave() {
-  const weight = Number(form.weight)
-  if (!form.date) {
-    error.value = '请选择日期'
-    return
-  }
-  if (!Number.isFinite(weight) || weight <= 0) {
-    error.value = '请输入有效体重'
-    return
-  }
-
-  const existing = props.weightLogs.find((log) => log.date === form.date)
-  if (existing && !confirm(`该日期已有记录（${existing.weight}kg），要覆盖吗？`)) return
-
-  saving.value = true
-  error.value = ''
-  try {
-    const updatedLogs = await saveWeightLog({
-      date: form.date,
-      weight: Math.round(weight * 10) / 10,
-      hungerLevel: form.hungerLevel,
-      adherenceLevel: form.adherenceLevel,
-      note: form.note.trim(),
-    })
-    resetForm()
-    emit('save', updatedLogs)
-  } catch (e) {
-    console.warn('Failed to save weight log', e)
-    error.value = '保存失败，请稍后重试'
-  } finally {
-    saving.value = false
-  }
 }
 
 async function handleDelete(log) {
@@ -331,65 +269,7 @@ async function handleDelete(log) {
       <p>{{ hasWeightLogs ? '继续记录几天后生成趋势图' : '添加第一条体重记录后，将开始生成趋势' }}</p>
     </div>
 
-    <form class="log-form" @submit.prevent="handleSave">
-      <div class="form-grid">
-        <label>
-          <span>日期</span>
-          <input v-model="form.date" type="date">
-        </label>
-        <label>
-          <span>体重</span>
-          <input
-            v-model="form.weight"
-            type="number"
-            min="1"
-            step="0.1"
-            inputmode="decimal"
-            placeholder="kg"
-          >
-        </label>
-      </div>
-
-      <div class="score-block">
-        <span>饥饿感</span>
-        <div class="score-buttons">
-          <button
-            v-for="score in 5"
-            :key="`hunger-${score}`"
-            type="button"
-            :class="{ active: form.hungerLevel === score }"
-            @click="setScore('hungerLevel', score)"
-          >
-            {{ score }}
-          </button>
-        </div>
-      </div>
-
-      <div class="score-block">
-        <span>执行度</span>
-        <div class="score-buttons">
-          <button
-            v-for="score in 5"
-            :key="`adherence-${score}`"
-            type="button"
-            :class="{ active: form.adherenceLevel === score }"
-            @click="setScore('adherenceLevel', score)"
-          >
-            {{ score }}
-          </button>
-        </div>
-      </div>
-
-      <label class="note-field">
-        <span>备注</span>
-        <textarea v-model="form.note" rows="3" placeholder="可选"></textarea>
-      </label>
-
-      <p v-if="error" class="form-error">{{ error }}</p>
-      <button type="submit" class="primary-action full-width" :disabled="saving">
-        {{ saving ? '保存中...' : '保存记录' }}
-      </button>
-    </form>
+    <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="recent-panel">
       <div class="recent-head">

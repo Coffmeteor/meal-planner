@@ -90,7 +90,7 @@ const todos = computed(() => {
     items.push({
       key: 'deviation',
       label: '优化今日餐单',
-      action: () => pushPage('planDay', { dayIndex: todayIndex.value }),
+      action: () => openMealEditor(0),
     })
   }
   return items
@@ -141,7 +141,20 @@ function mealSummary(meal) {
 }
 
 function openTodayPlan() {
-  pushPage('planDay', { dayIndex: todayIndex.value })
+  openMealEditor(0)
+}
+
+function openMealEditor(mealIndex) {
+  const mealData = todayPlan.value?.meals?.[mealIndex]
+  if (!mealData) {
+    pushPage('planDay', { dayIndex: todayIndex.value })
+    return
+  }
+  pushPage('mealEditor', {
+    dayIndex: todayIndex.value,
+    mealIndex,
+    mealData,
+  })
 }
 
 function replaceFirstMeal() {
@@ -192,7 +205,7 @@ function replaceFirstMeal() {
           :key="`${meal.time}-${meal.name}-${index}`"
           type="button"
           class="today-meal-row"
-          @click="emit('editMeal', { dayIndex: todayIndex, mealIndex: index })"
+          @click="openMealEditor(index)"
         >
           <span>{{ formatTime(meal.time) || '--:--' }}</span>
           <strong>{{ meal.label || meal.name }}</strong>

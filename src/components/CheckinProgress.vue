@@ -1,6 +1,6 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { deleteCheckin, saveCheckin } from '../storage/index.js'
+import { computed, ref } from 'vue'
+import { deleteCheckin } from '../storage/index.js'
 import { analyzeRecentCheckins, generateCheckinAdvice } from '../utils/checkins.js'
 
 const props = defineProps({
@@ -16,16 +16,6 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'close'])
 
-const form = reactive({
-  date: todayYmd(),
-  mealCompleted: 'partial',
-  ateOut: false,
-  exerciseDone: false,
-  sleepQuality: null,
-  hungerLevel: null,
-  adherenceLevel: null,
-  note: '',
-})
 const saving = ref(false)
 const error = ref('')
 
@@ -41,80 +31,12 @@ const completionLabels = {
   missed: '未完成',
 }
 
-watch(
-  () => [form.date, props.checkins],
-  () => fillFromExistingDate(),
-  { immediate: true },
-)
-
-function todayYmd() {
-  const date = new Date()
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function fillFromExistingDate() {
-  const existing = props.checkins.find((log) => log.date === form.date)
-  if (!existing) {
-    form.mealCompleted = 'partial'
-    form.ateOut = false
-    form.exerciseDone = false
-    form.sleepQuality = null
-    form.hungerLevel = null
-    form.adherenceLevel = null
-    form.note = ''
-    return
-  }
-
-  form.mealCompleted = existing.mealCompleted ?? 'partial'
-  form.ateOut = !!existing.ateOut
-  form.exerciseDone = !!existing.exerciseDone
-  form.sleepQuality = existing.sleepQuality ?? null
-  form.hungerLevel = existing.hungerLevel ?? null
-  form.adherenceLevel = existing.adherenceLevel ?? null
-  form.note = existing.note ?? ''
-}
-
-function setScore(field, value) {
-  form[field] = form[field] === value ? null : value
-}
-
 function scoreText(value) {
   return value == null ? '未填' : `${value}/5`
 }
 
 function percentText(value) {
   return value == null ? '--' : `${Math.round(value * 100)}%`
-}
-
-async function handleSave() {
-  if (!form.date) {
-    error.value = '请选择日期'
-    return
-  }
-
-  saving.value = true
-  error.value = ''
-  try {
-    const result = await saveCheckin({
-      date: form.date,
-      mealCompleted: form.mealCompleted,
-      ateOut: form.ateOut,
-      exerciseDone: form.exerciseDone,
-      sleepQuality: form.sleepQuality,
-      hungerLevel: form.hungerLevel,
-      adherenceLevel: form.adherenceLevel,
-      note: form.note.trim(),
-    })
-    emit('save', result)
-  } catch (e) {
-    console.warn('Failed to save checkin', e)
-    error.value = '保存失败，请稍后重试'
-  } finally {
-    saving.value = false
-  }
 }
 
 async function handleDelete(id) {
@@ -145,101 +67,7 @@ async function handleDelete(id) {
       <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
 
-    <form class="checkin-panel checkin-form" @submit.prevent="handleSave">
-      <label>
-        <span>日期</span>
-        <input v-model="form.date" type="date">
-      </label>
-
-      <div class="field-block">
-        <span>餐单完成度</span>
-        <div class="completion-grid">
-          <button
-            v-for="option in ['full', 'partial', 'missed']"
-            :key="option"
-            type="button"
-            :class="{ active: form.mealCompleted === option }"
-            @click="form.mealCompleted = option"
-          >
-            {{ completionLabels[option] }}
-          </button>
-        </div>
-      </div>
-
-      <div class="toggle-grid">
-        <button
-          type="button"
-          class="toggle-button"
-          :class="{ active: form.ateOut }"
-          @click="form.ateOut = !form.ateOut"
-        >
-          外食：{{ form.ateOut ? '是' : '否' }}
-        </button>
-        <button
-          type="button"
-          class="toggle-button"
-          :class="{ active: form.exerciseDone }"
-          @click="form.exerciseDone = !form.exerciseDone"
-        >
-          运动：{{ form.exerciseDone ? '是' : '否' }}
-        </button>
-      </div>
-
-      <div class="field-block">
-        <span>睡眠质量</span>
-        <div class="score-buttons">
-          <button
-            v-for="score in 5"
-            :key="`sleep-${score}`"
-            type="button"
-            :class="{ active: form.sleepQuality === score }"
-            @click="setScore('sleepQuality', score)"
-          >
-            {{ score }}
-          </button>
-        </div>
-      </div>
-
-      <div class="field-block">
-        <span>饥饿感</span>
-        <div class="score-buttons">
-          <button
-            v-for="score in 5"
-            :key="`hunger-${score}`"
-            type="button"
-            :class="{ active: form.hungerLevel === score }"
-            @click="setScore('hungerLevel', score)"
-          >
-            {{ score }}
-          </button>
-        </div>
-      </div>
-
-      <div class="field-block">
-        <span>执行度</span>
-        <div class="score-buttons">
-          <button
-            v-for="score in 5"
-            :key="`adherence-${score}`"
-            type="button"
-            :class="{ active: form.adherenceLevel === score }"
-            @click="setScore('adherenceLevel', score)"
-          >
-            {{ score }}
-          </button>
-        </div>
-      </div>
-
-      <label>
-        <span>备注</span>
-        <textarea v-model="form.note" rows="3" placeholder="可选"></textarea>
-      </label>
-
-      <p v-if="error" class="form-error">{{ error }}</p>
-      <button type="submit" class="primary-action full-width" :disabled="saving">
-        {{ saving ? '保存中...' : '保存打卡' }}
-      </button>
-    </form>
+    <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="checkin-panel">
       <div class="panel-head">

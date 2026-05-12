@@ -1,18 +1,21 @@
 <script setup>
 import { computed, nextTick, onMounted, provide, ref, watch } from 'vue'
-import CheckinProgress from './components/CheckinProgress.vue'
+import CheckinForm from './components/CheckinForm.vue'
+import CustomFood from './components/CustomFood.vue'
+import DataBackup from './components/DataBackup.vue'
 import DayFoodEditor from './components/DayFoodEditor.vue'
 import FoodsPage from './components/FoodsPage.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
 import MealEditor from './components/MealEditor.vue'
 import PlanPage from './components/PlanPage.vue'
+import ProfileEdit from './components/ProfileEdit.vue'
 import ProfilePage from './components/ProfilePage.vue'
 import ProgressPage from './components/ProgressPage.vue'
 import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
 import TodayDashboard from './components/TodayDashboard.vue'
-import WeightProgress from './components/WeightProgress.vue'
+import WeightEntry from './components/WeightEntry.vue'
 import {
   clearPageStack,
   currentPage,
@@ -126,8 +129,11 @@ const subPageComponents = {
   planDay: PlanPage,
   mealEditor: MealEditor,
   dayFoodEditor: DayFoodEditor,
-  weightEntry: WeightProgress,
-  checkinForm: CheckinProgress,
+  checkinForm: CheckinForm,
+  weightEntry: WeightEntry,
+  dataBackup: DataBackup,
+  profileEdit: ProfileEdit,
+  customFood: CustomFood,
 }
 const subPageTitles = {
   planDay: '今日餐单',
@@ -135,6 +141,9 @@ const subPageTitles = {
   dayFoodEditor: '编辑当天食材',
   weightEntry: '记录体重',
   checkinForm: '今日打卡',
+  dataBackup: '数据备份/恢复',
+  profileEdit: '修改资料',
+  customFood: '自定义食材',
 }
 const currentPageName = computed(() => currentPage.value?.name || null)
 const topBarTitle = computed(() => subPageTitles[currentPageName.value] || '详情')
@@ -175,9 +184,11 @@ const editorAvailableFoods = computed(() => {
   return available.length ? available : defaultFoods
 })
 const editorMealTargetCalories = computed(() => {
-  if (!editingMeal.value) return 0
+  const pageParams = currentPageParams.value || {}
+  const dayIndex = Number(pageParams.dayIndex ?? editingMeal.value?.dayIndex)
+  const mealIndex = Number(pageParams.mealIndex ?? editingMeal.value?.mealIndex ?? 0)
+  if (!Number.isFinite(dayIndex) || !Number.isFinite(mealIndex)) return 0
 
-  const { dayIndex, mealIndex } = editingMeal.value
   const day = plan.value[dayIndex]
   const dailyTarget =
     Number(day?.targets?.calories)
@@ -246,41 +257,33 @@ function tabPageProps(tab) {
 
 function subPageProps(name) {
   if (name === 'mealEditor') {
-    return editorMeal.value
+    const pageParams = currentPageParams.value || {}
+    const dayIndex = Number(pageParams.dayIndex ?? editingMeal.value?.dayIndex)
+    const mealIndex = Number(pageParams.mealIndex ?? editingMeal.value?.mealIndex ?? 0)
+    const meal = plan.value[dayIndex]?.meals?.[mealIndex] || pageParams.mealData || null
+    return meal
       ? {
-          meal: editorMeal.value,
-          dayIndex: editingMeal.value.dayIndex,
-          mealIndex: editingMeal.value.mealIndex,
+          meal,
+          dayIndex,
+          mealIndex,
           mealTargetCalories: editorMealTargetCalories.value,
           availableFoods: editorAvailableFoods.value,
         }
       : {}
   }
   if (name === 'dayFoodEditor') {
-    return dayFoodEditorDay.value
+    const pageParams = currentPageParams.value || {}
+    const dayIndex = Number(pageParams.dayIndex ?? editingDayFood.value)
+    const day = plan.value[dayIndex] || null
+    return day
       ? {
-          day: dayFoodEditorDay.value,
-          dayIndex: editingDayFood.value,
-          availableFoods: dayFoodEditorFoods.value,
+          day,
+          dayIndex,
+          availableFoods: mergeFoodsById(editorAvailableFoods.value, foodsUsedByDay(day)),
         }
       : {}
   }
-  if (name === 'weightEntry') {
-    return {
-      weightLogs: weightLogs.value,
-      profile: params.value,
-      checkins: checkins.value,
-      planDays: Number(params.value?.days || planMeta.value?.days || plan.value.length || 7),
-      startDate: planMeta.value?.startDate || null,
-      showClose: false,
-    }
-  }
-  if (name === 'checkinForm') {
-    return {
-      checkins: checkins.value,
-      showClose: false,
-    }
-  }
+  if (['weightEntry', 'checkinForm', 'dataBackup', 'profileEdit', 'customFood'].includes(name)) return currentPageParams.value
   return sharedPlanProps()
 }
 
@@ -922,6 +925,39 @@ function handleCheckinSave(updated) {
   showToast('已保存打卡')
 }
 
+async function handleSubPageDone(payload = {}) {
+  const pageName = currentPageName.value
+
+  if (payload.type === 'weights') {
+    weightLogs.value = payload.data || []
+    showToast('已保存体重记录')
+  } else if (payload.type === 'checkins') {
+    checkins.value = payload.data || []
+    showToast('已保存打卡')
+  } else if (payload.type === 'profile') {
+    params.value = payload.data || params.value
+    lsSave('profile', params.value)
+    showToast('已保存资料')
+  } else if (payload.type === 'foodPreferences') {
+    foodPrefs.value = payload.data || (await loadFoodPreferences())
+    showToast('已保存食材')
+  } else if (payload.type === 'backup') {
+    await loadAppState()
+    showToast('数据已更新')
+    return
+  }
+
+  if (pageName === 'mealEditor') editingMeal.value = null
+  if (pageName === 'dayFoodEditor') editingDayFood.value = null
+  popPage()
+}
+
+function handleSubPageCancel() {
+  if (currentPageName.value === 'mealEditor') editingMeal.value = null
+  if (currentPageName.value === 'dayFoodEditor') editingDayFood.value = null
+  popPage()
+}
+
 function handlePageSave(payload, options = {}) {
   if (currentPageName.value === 'dayFoodEditor') {
     handleSaveDayFood(payload)
@@ -992,7 +1028,7 @@ function handleBack() {
 
 function handleTodayOptimize(dayIndex = currentDayIndex.value) {
   handleRefreshDay(dayIndex)
-  pushPage('planDay', { dayIndex })
+  pushPage('mealEditor', { dayIndex, mealIndex: 0 })
 }
 
 function resolveTodayIndex() {
@@ -1049,7 +1085,8 @@ function resolveTodayIndex() {
           @save="handlePageSave"
           @save-meal="handleSaveMeal"
           @cancel-edit="handleCancelMealEdit"
-          @cancel="handleCancelDayFoodEdit"
+          @done="handleSubPageDone"
+          @cancel="handleSubPageCancel"
           @save-weight-logs="handleWeightLogsSave"
           @save-checkins="handleCheckinSave"
           @edit-profile="handleEditProfile"
