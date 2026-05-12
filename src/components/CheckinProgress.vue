@@ -528,8 +528,7 @@ textarea {
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
+
 }
 
 .form-action-bar.single {

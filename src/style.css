@@ -457,9 +457,7 @@ button:focus-visible {
   padding: 0;
   padding-bottom: env(safe-area-inset-bottom);
   border-top: 0.5px solid var(--color-separator);
-  background: rgba(249, 249, 249, 0.94);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  background: rgba(249, 249, 249, 0.97);
 }
 
 .tab-button {
@@ -531,9 +529,7 @@ button:focus-visible {
   margin: 0 -1rem;
   padding: env(safe-area-inset-top) 1rem 0;
   border-bottom: 0.5px solid var(--color-separator);
-  background: rgba(249, 249, 249, 0.94);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  background: rgba(249, 249, 249, 0.97);
 }
 
 .app-top-bar h1 {
@@ -969,8 +965,6 @@ button:focus-visible {
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 
 .day-food-toolbar span {
@@ -1022,8 +1016,6 @@ button:focus-visible {
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.04);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 
 .food-save-bar span {
@@ -1934,8 +1926,6 @@ button:focus-visible {
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
-  backdrop-filter: saturate(180%) blur(8px);
-  -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 
 .meal-picker-backdrop {

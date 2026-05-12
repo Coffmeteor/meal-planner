@@ -14,6 +14,7 @@ defineProps({
 
 const emit = defineEmits([
   'profileEdit',
+  'lifestyleEdit',
   'planSettings',
   'customFood',
   'dataBackup',
@@ -42,6 +43,20 @@ const emit = defineEmits([
         <div class="settings-item-content">
           <strong>个人资料</strong>
           <span>性别、年龄、身高、体重、活动量</span>
+        </div>
+        <div class="settings-item-arrow" aria-hidden="true">›</div>
+      </div>
+    </section>
+
+    <section class="settings-group">
+      <div class="settings-group-label">生活习惯</div>
+      <div class="settings-item" role="button" tabindex="0" @click="emit('lifestyleEdit')" @keydown.enter="emit('lifestyleEdit')">
+        <div class="settings-item-icon" style="background:#5856d6">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="settings-item-content">
+          <strong>生活习惯</strong>
+          <span>作息、早餐习惯、运动频率</span>
         </div>
         <div class="settings-item-arrow" aria-hidden="true">›</div>
       </div>

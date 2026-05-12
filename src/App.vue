@@ -77,6 +77,7 @@ const titleMap = {
   checkinForm: '今日打卡',
   dataBackup: '数据备份/恢复',
   profileEdit: '修改资料',
+  lifestyleEdit: '生活习惯',
   planSettings: '饮食计划',
   customFood: '食材偏好',
 }
@@ -96,6 +97,7 @@ const subPageComponents = {
   checkinForm: CheckinProgress,
   dataBackup: ProfileView,
   profileEdit: InputForm,
+  lifestyleEdit: InputForm,
   planSettings: InputForm,
   customFood: FoodPreferences,
 }
@@ -604,18 +606,20 @@ function handleTodayOptimize(dayIndex) {
   showToast('已优化今日热量')
 }
 
-function handleWeightLogsSave(updatedLogs) {
+async function handleWeightLogsSave(updatedLogs) {
   weightLogs.value = updatedLogs
+  await nextTick()
   dataVersion.value++
   showToast('已保存体重')
-  nextTick(() => popPage())
+  popPage()
 }
 
-function handleCheckinSave(updated) {
+async function handleCheckinSave(updated) {
   checkins.value = updated
+  await nextTick()
   dataVersion.value++
   showToast('已保存打卡')
-  nextTick(() => popPage())
+  popPage()
 }
 
 function handleWeightLogsTabSave(updatedLogs) {
@@ -636,6 +640,7 @@ function handleSubPageSave(payload, options) {
   if (pageName === 'weightEntry') handleWeightLogsSave(payload)
   if (pageName === 'checkinForm') handleCheckinSave(payload)
   if (pageName === 'customFood') handleCustomFoodSave(payload, options)
+  if (pageName === 'profileEdit' || pageName === 'lifestyleEdit' || pageName === 'planSettings') handleProfileEditSubmit(payload)
 }
 
 function handleSubPageDone(payload) {
@@ -733,7 +738,10 @@ function subPageProps(page) {
     return { profile: params.value, planMeta: planMeta.value }
   }
   if (name === 'profileEdit') {
-    return { initialData: params.value, editMode: true }
+    return { initialData: params.value, editMode: true, section: 'body' }
+  }
+  if (name === 'lifestyleEdit') {
+    return { initialData: params.value, editMode: true, section: 'lifestyle' }
   }
   if (name === 'planSettings') {
     return { initialData: params.value, editMode: true, section: 'plan' }
@@ -799,6 +807,7 @@ function subPageProps(page) {
           @checkin-save="handleCheckinTabSave"
           @custom-food="pushPage('customFood')"
           @profile-edit="pushPage('profileEdit')"
+          @lifestyle-edit="pushPage('lifestyleEdit')"
           @plan-settings="pushPage('planSettings')"
           @data-backup="pushPage('dataBackup')"
           @clear-data="handleClearData"
@@ -911,8 +920,6 @@ function subPageProps(page) {
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   transform: translateX(-50%);
   animation: toast-in 0.2s ease;
 }
