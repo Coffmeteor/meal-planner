@@ -113,6 +113,7 @@ const foodSetupMode = ref(false)
 const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
+const dataVersion = ref(0)
 
 const isAppShell = computed(() => view.value === 'shell' && plan.value.length > 0)
 const activeTabComponent = computed(() => tabComponents[activeTab.value] || TodayDashboard)
@@ -605,23 +606,27 @@ function handleTodayOptimize(dayIndex) {
 
 function handleWeightLogsSave(updatedLogs) {
   weightLogs.value = updatedLogs
+  dataVersion.value++
   showToast('已保存体重')
   nextTick(() => popPage())
 }
 
 function handleCheckinSave(updated) {
   checkins.value = updated
+  dataVersion.value++
   showToast('已保存打卡')
   nextTick(() => popPage())
 }
 
 function handleWeightLogsTabSave(updatedLogs) {
   weightLogs.value = updatedLogs
+  dataVersion.value++
   showToast('已保存体重')
 }
 
 function handleCheckinTabSave(updated) {
   checkins.value = updated
+  dataVersion.value++
   showToast('已保存打卡')
 }
 
@@ -775,6 +780,7 @@ function subPageProps(page) {
         <component
           :is="activeTabComponent"
           v-else
+          :key="dataVersion"
           v-bind="activeTabProps"
           @edit-meal="handleEditMeal"
           @edit-day-food="handleEditDayFood"

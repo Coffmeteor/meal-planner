@@ -242,7 +242,7 @@ function openMealEditor(mealIndex) {
 .today-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .today-header {
@@ -271,8 +271,8 @@ function openMealEditor(mealIndex) {
 .today-ring-card {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-card);
   background: var(--color-card);
 }
@@ -280,8 +280,8 @@ function openMealEditor(mealIndex) {
 .ring-container {
   position: relative;
   flex: 0 0 auto;
-  width: 5.5rem;
-  height: 5.5rem;
+  width: 4.25rem;
+  height: 4.25rem;
 }
 
 .calorie-ring {
@@ -411,9 +411,9 @@ function openMealEditor(mealIndex) {
 .today-meal-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  min-height: 2.85rem;
-  padding: 0.55rem 0.85rem;
+  gap: 0.5rem;
+  min-height: 2.4rem;
+  padding: 0.4rem 0.85rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -474,9 +474,9 @@ function openMealEditor(mealIndex) {
 .status-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.85rem;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.85rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -536,8 +536,8 @@ function openMealEditor(mealIndex) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.85rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.85rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -548,8 +548,8 @@ function openMealEditor(mealIndex) {
 
 .action-row strong {
   color: var(--color-text);
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .action-row + .action-row {

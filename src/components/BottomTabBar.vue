@@ -53,9 +53,7 @@ const iconPaths = {
   padding: 0;
   padding-bottom: env(safe-area-inset-bottom);
   border-top: 0.5px solid rgba(60, 60, 67, 0.29);
-  background: rgba(249, 249, 249, 0.94);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: rgba(249, 249, 249, 0.96);
 }
 
 .tab-button {
