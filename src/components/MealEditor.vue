@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { pushPage } from '../stores/navigationStore.js'
 import { normalizeEditedMeal } from '../utils/mealDisplay.js'
 
 const props = defineProps({
@@ -249,6 +250,14 @@ function closePicker() {
   pickerCategory.value = null
 }
 
+function openTextInput() {
+  pushPage('foodTextInput', {
+    dayIndex: props.dayIndex,
+    mealIndex: props.mealIndex,
+    mealData: normalizeEditedMeal(props.meal, localFoods.value),
+  })
+}
+
 function pickFood(food) {
   if (pickerMode.value === 'replace' && replaceIndex.value !== null) {
     const oldFood = localFoods.value[replaceIndex.value]
@@ -326,6 +335,9 @@ function handleSave() {
       </div>
       <button type="button" class="ghost-action full-width" @click="openAddPicker">
         添加食材
+      </button>
+      <button type="button" class="ghost-action full-width" @click="openTextInput">
+        文本添加食材
       </button>
     </div>
 

@@ -4,6 +4,7 @@ import CheckinForm from './components/CheckinForm.vue'
 import CustomFood from './components/CustomFood.vue'
 import DataBackup from './components/DataBackup.vue'
 import DayFoodEditor from './components/DayFoodEditor.vue'
+import FoodTextInput from './components/FoodTextInput.vue'
 import FoodsPage from './components/FoodsPage.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
@@ -134,6 +135,7 @@ const subPageComponents = {
   dataBackup: DataBackup,
   profileEdit: ProfileEdit,
   customFood: CustomFood,
+  foodTextInput: FoodTextInput,
 }
 const subPageTitles = {
   planDay: '今日餐单',
@@ -144,6 +146,7 @@ const subPageTitles = {
   dataBackup: '数据备份/恢复',
   profileEdit: '修改资料',
   customFood: '自定义食材',
+  foodTextInput: '文本添加食材',
 }
 const currentPageName = computed(() => currentPage.value?.name || null)
 const topBarTitle = computed(() => subPageTitles[currentPageName.value] || '详情')
@@ -280,6 +283,20 @@ function subPageProps(name) {
           day,
           dayIndex,
           availableFoods: mergeFoodsById(editorAvailableFoods.value, foodsUsedByDay(day)),
+        }
+      : {}
+  }
+  if (name === 'foodTextInput') {
+    const pageParams = currentPageParams.value || {}
+    const dayIndex = Number(pageParams.dayIndex ?? editingMeal.value?.dayIndex)
+    const mealIndex = Number(pageParams.mealIndex ?? editingMeal.value?.mealIndex ?? 0)
+    const mealData = pageParams.mealData || plan.value[dayIndex]?.meals?.[mealIndex] || null
+    return mealData
+      ? {
+          dayIndex,
+          mealIndex,
+          mealData,
+          availableFoods: mergeFoodsById(editorAvailableFoods.value, mealFoods(mealData)),
         }
       : {}
   }
@@ -661,12 +678,24 @@ function handleCancelMealEdit() {
 }
 
 function handleSaveMeal({ dayIndex, mealIndex, foods, meal: savedMeal }) {
+  if (!saveEditedMealToPlan({ dayIndex, mealIndex, foods, meal: savedMeal })) return
+
+  editingMeal.value = null
+  if (currentPageName.value === 'mealEditor') popPage()
+  showToast('已保存餐次')
+}
+
+function saveEditedMealToPlan({ dayIndex, mealIndex, foods, meal: savedMeal }) {
   const meal = plan.value[dayIndex]?.meals?.[mealIndex]
-  if (!meal) return
+  if (!meal) return false
 
   const now = new Date().toISOString()
   const nextMeal = savedMeal
-    ? normalizeEditedMeal(meal, savedMeal.foods || foods, { name: savedMeal.name, updatedAt: now })
+    ? normalizeEditedMeal(meal, savedMeal.foods || foods, {
+        name: savedMeal.name,
+        editSource: savedMeal.editSource || 'manual',
+        updatedAt: now,
+      })
     : normalizeEditedMeal(meal, foods, { updatedAt: now })
 
   plan.value = plan.value.map((day, currentDayIndex) => {
@@ -690,10 +719,8 @@ function handleSaveMeal({ dayIndex, mealIndex, foods, meal: savedMeal }) {
     }
   })
 
-  editingMeal.value = null
-  if (currentPageName.value === 'mealEditor') popPage()
   savePlan()
-  showToast('已保存餐次')
+  return true
 }
 
 function handleRefreshDay(dayIndex) {
@@ -928,7 +955,9 @@ function handleCheckinSave(updated) {
 async function handleSubPageDone(payload = {}) {
   const pageName = currentPageName.value
 
-  if (payload.type === 'weights') {
+  if (payload.type === 'mealFoods') {
+    if (saveEditedMealToPlan(payload)) showToast('已添加食材')
+  } else if (payload.type === 'weights') {
     weightLogs.value = payload.data || []
     showToast('已保存体重记录')
   } else if (payload.type === 'checkins') {
