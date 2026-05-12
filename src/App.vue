@@ -54,9 +54,14 @@ import {
   popPage,
   pushPage,
 } from './stores/navigationStore.js'
+import { useToast } from './composables/useToast.js'
+import { useScrollRestore } from './composables/useScrollRestore.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
+
+const { toastMsg, showToast } = useToast()
+const { queueScrollToPageTop } = useScrollRestore()
 
 const tabs = [
   { value: 'foods', label: '食材' },
@@ -107,7 +112,6 @@ const foodSetupMode = ref(false)
 const recommendation = ref(null)
 const saveError = ref('')
 const saving = ref(false)
-const toastMsg = ref('')
 
 const isAppShell = computed(() => view.value === 'shell' && plan.value.length > 0)
 const activeTabComponent = computed(() => tabComponents[activeTab.value] || TodayDashboard)
@@ -155,27 +159,7 @@ watch(hasSubPage, () => queueScrollToPageTop())
 
 onMounted(loadAppState)
 
-let toastTimer = null
-function showToast(msg) {
-  toastMsg.value = msg
-  if (toastTimer) window.clearTimeout(toastTimer)
-  toastTimer = window.setTimeout(() => {
-    toastMsg.value = ''
-  }, 2200)
-}
-
-let scrollPending = false
-function queueScrollToPageTop() {
-  if (scrollPending) return
-  scrollPending = true
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: 'auto' })
-      scrollPending = false
-    })
-  })
-}
-
+// ── App State ─────────────────────────────────────────────────
 async function loadAppState() {
   try {
     const [appState, loadedFoodPrefs, loadedWeightLogs, loadedCheckins] = await Promise.all([
