@@ -36,6 +36,7 @@ const form = reactive({
   hasCardio: false,
   dietMethod: null,
   deficitPercent: null,
+  scope: 'settings',
 })
 
 watch(
@@ -81,6 +82,7 @@ function submitForm() {
     hasCardio: Boolean(form.hasCardio),
     dietMethod: form.dietMethod,
     deficitPercent: form.deficitPercent,
+    scope: form.scope,
   })
 }
 </script>
@@ -196,6 +198,16 @@ function submitForm() {
         </div>
       </div>
     </template>
+
+    <!-- Apply scope (plan section only) -->
+    <div v-if="editMode && section === 'plan'" class="field-group">
+      <span class="field-label">应用范围</span>
+      <div class="segmented">
+        <button type="button" :class="{ active: form.scope === 'settings' }" @click="form.scope = 'settings'">仅更新设置</button>
+        <button type="button" :class="{ active: form.scope === 'today' }" @click="form.scope = 'today'">从今天开始应用</button>
+        <button type="button" :class="{ active: form.scope === 'restart' }" @click="form.scope = 'restart'">重新开始计划</button>
+      </div>
+    </div>
 
     <div v-if="editMode" class="action-row">
       <button type="button" class="ghost-action" @click="emit('cancel')">放弃修改</button>

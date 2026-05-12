@@ -79,11 +79,14 @@ watch(
 )
 
 const visibleDefaults = computed(() => {
-  const foods = activeCategory.value === 'all'
+  const defaults = activeCategory.value === 'all'
     ? DEFAULT_FOODS
     : DEFAULT_FOODS.filter((food) => food.category === activeCategory.value)
+  const customs = activeCategory.value === 'all'
+    ? localPrefs.customFoods
+    : localPrefs.customFoods.filter((food) => food.category === activeCategory.value)
 
-  return [...foods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  return [...defaults, ...customs].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 })
 
 const sortedCustomFoods = computed(() =>
@@ -291,12 +294,10 @@ function preferencesPayload() {
 }
 
 function savePreferences() {
-  emit('save', preferencesPayload())
+  emit('save', preferencesPayload(), { scope: foodScope.value })
 }
 
-function saveAndRefresh() {
-  emit('save', preferencesPayload(), { refresh: true })
-}
+const foodScope = ref('save')
 
 function clearSelection() {
   localPrefs.selectedFoodIds = []
@@ -367,7 +368,6 @@ defineExpose({
           <div class="food-grid">
             <template v-for="food in group.foods" :key="food.id">
               <button
-                v-if="food.source !== 'custom' && !String(food.id).startsWith('custom-')"
                 type="button"
                 class="food-card"
                 :class="{ selected: isSelected(food.id) }"
@@ -375,7 +375,7 @@ defineExpose({
               >
                 <span>
                   {{ food.name }}
-                  <small class="food-card-meta">{{ categoryLabel(food) }}</small>
+                  <small class="food-card-meta">{{ categoryLabel(food) }}{{ food.source === 'custom' || String(food.id).startsWith('custom-') ? ' · 自定义' : '' }}</small>
                 </span>
                 <span class="food-card-actions">
                   <span
@@ -387,15 +387,6 @@ defineExpose({
                   <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
                 </span>
               </button>
-              <article v-else class="food-card food-card-static selected">
-                <span>
-                  {{ food.name }}
-                  <small class="food-card-meta">{{ categoryLabel(food) }} · 自定义</small>
-                </span>
-                <span class="food-card-actions">
-                  <i>✓</i>
-                </span>
-              </article>
             </template>
           </div>
         </section>
@@ -499,8 +490,15 @@ defineExpose({
         <button type="button" class="primary-action" @click="savePreferences">继续生成餐单</button>
       </template>
       <template v-else>
-        <button type="button" class="ghost-action" @click="savePreferences">保存</button>
-        <button type="button" class="primary-action" @click="saveAndRefresh">保存并刷新食谱</button>
+        <div v-if="props.mode !== 'setup'" class="field-group" style="padding:0 0.5rem">
+          <span class="field-label" style="font-size:0.78rem;color:var(--color-muted)">应用范围</span>
+          <div class="segmented three-wide">
+            <button type="button" :class="{ active: foodScope === 'save' }" @click="foodScope = 'save'">仅保存</button>
+            <button type="button" :class="{ active: foodScope === 'today' }" @click="foodScope = 'today'">应用到今日</button>
+            <button type="button" :class="{ active: foodScope === 'future' }" @click="foodScope = 'future'">应用到后续</button>
+          </div>
+        </div>
+        <button type="button" class="primary-action" @click="savePreferences">保存</button>
       </template>
     </div>
   </section>

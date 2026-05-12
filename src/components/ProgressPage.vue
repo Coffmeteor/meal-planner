@@ -94,6 +94,17 @@ const checkinStatusText = computed(() => {
 })
 const totalWeightEntries = computed(() => validWeightLogs.value.length)
 const totalCheckinEntries = computed(() => props.checkins.length)
+const latestBodyMeasurements = computed(() => {
+  const last = validWeightLogs.value[0]
+  if (!last) return null
+  const fields = ['waist', 'hip', 'chest', 'bodyFat', 'thigh', 'arm']
+  const values = {}
+  let hasAny = false
+  for (const f of fields) {
+    if (last[f] != null && Number(last[f]) > 0) { values[f] = Number(last[f]); hasAny = true }
+  }
+  return hasAny ? values : null
+})
 
 function todayYmd() {
   const date = new Date()
@@ -198,6 +209,25 @@ function scoreText(value) {
       <button type="button" class="ghost-action full-width" @click="emit('checkinToday')">
         查看打卡记录
       </button>
+    </section>
+
+    <!-- Body Measurements Card -->
+    <section v-if="latestBodyMeasurements" class="progress-dashboard-card body-measure-card">
+      <div class="progress-card-head">
+        <div>
+          <p>身体围度</p>
+          <h2 class="big-number">最近记录</h2>
+        </div>
+      </div>
+      <div class="stat-row stat-row-2col">
+        <div v-if="latestBodyMeasurements.waist" class="stat-cell"><span>腰围</span><strong>{{ latestBodyMeasurements.waist }}<small>cm</small></strong></div>
+        <div v-if="latestBodyMeasurements.hip" class="stat-cell"><span>臀围</span><strong>{{ latestBodyMeasurements.hip }}<small>cm</small></strong></div>
+        <div v-if="latestBodyMeasurements.chest" class="stat-cell"><span>胸围</span><strong>{{ latestBodyMeasurements.chest }}<small>cm</small></strong></div>
+        <div v-if="latestBodyMeasurements.bodyFat" class="stat-cell"><span>体脂率</span><strong>{{ latestBodyMeasurements.bodyFat }}<small>%</small></strong></div>
+        <div v-if="latestBodyMeasurements.thigh" class="stat-cell"><span>大腿围</span><strong>{{ latestBodyMeasurements.thigh }}<small>cm</small></strong></div>
+        <div v-if="latestBodyMeasurements.arm" class="stat-cell"><span>上臂围</span><strong>{{ latestBodyMeasurements.arm }}<small>cm</small></strong></div>
+      </div>
+      <button type="button" class="ghost-action full-width" @click="emit('recordWeight')">记录身体数据</button>
     </section>
 
     <!-- Quick Stats -->

@@ -460,8 +460,25 @@ async function handleFoodsSave(updatedPrefs, options = {}) {
     return
   }
 
-  showToast('已保存食材')
-  if (options?.refresh) handleRefreshRecipe()
+  const scope = options?.scope || 'save'
+  showToast(scope === 'save' ? '已保存食材偏好' : scope === 'today' ? '已应用到今日餐单' : '已应用到后续计划')
+  if (scope === 'future' && plan.value.length > 0) {
+    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow())
+    setPlanMeta(plan.value)
+    savePlan()
+    dataVersion.value++
+  } else if (scope === 'today' && plan.value.length > 0) {
+    const idx = todayIndex()
+    const day = plan.value[idx]
+    if (day) {
+      const regenerated = regenerateDay(params.value, schedule.value, resolveAvailableFoods(), day, { editSource: 'applyFoodPrefs' }, currentEatingWindow())
+      const nextPlan = [...plan.value]
+      nextPlan[idx] = regenerated
+      plan.value = nextPlan
+      savePlan()
+      dataVersion.value++
+    }
+  }
 }
 
 function handleFoodsClose() {
@@ -622,14 +639,16 @@ async function handleCheckinSave(updated) {
   popPage()
 }
 
-function handleWeightLogsTabSave(updatedLogs) {
+async function handleWeightLogsTabSave(updatedLogs) {
   weightLogs.value = updatedLogs
+  await nextTick()
   dataVersion.value++
   showToast('已保存体重')
 }
 
-function handleCheckinTabSave(updated) {
+async function handleCheckinTabSave(updated) {
   checkins.value = updated
+  await nextTick()
   dataVersion.value++
   showToast('已保存打卡')
 }
@@ -659,10 +678,31 @@ async function handleCustomFoodSave(updatedPrefs, options = {}) {
 }
 
 async function handleProfileEditSubmit(updatedProfile) {
+  const scope = updatedProfile.scope || 'settings'
   params.value = { ...params.value, ...updatedProfile }
   lsSave('profile', params.value)
   await bgSaveProfileAndSchedule(params.value, schedule.value)
-  showToast('已保存资料')
+
+  if (scope === 'restart' && plan.value.length > 0) {
+    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow())
+    setPlanMeta(plan.value)
+    savePlan()
+    showToast('已重新开始计划')
+  } else if (scope === 'today' && plan.value.length > 0) {
+    const idx = todayIndex()
+    for (let i = idx; i < plan.value.length; i++) {
+      const day = plan.value[i]
+      plan.value[i] = day?.locked || day?.edited
+        ? day
+        : regenerateDay(params.value, schedule.value, resolveAvailableFoods(), day, { editSource: 'applySettings' }, currentEatingWindow())
+    }
+    setPlanMeta(plan.value)
+    savePlan()
+    showToast('已从今天开始应用')
+  } else {
+    showToast('已保存设置')
+  }
+  dataVersion.value++
   popPage()
 }
 

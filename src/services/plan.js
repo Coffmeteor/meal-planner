@@ -116,7 +116,7 @@ export function optimizeTodayCalories(plan, dayIndex, targetCalories) {
     ...day,
     meals: nextMeals,
     totals: calculateDayTotals(nextMeals),
-    edited: true,
+    optimized: true,
     editSource: 'todayOptimize',
     updatedAt: new Date().toISOString(),
   }

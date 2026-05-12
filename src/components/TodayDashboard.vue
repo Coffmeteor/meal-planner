@@ -14,6 +14,7 @@ const props = defineProps({
 const emit = defineEmits([
   'edit-meal', 'edit-day-food', 'optimize-day',
   'view-full-plan', 'record-weight', 'checkin-today',
+  'lock-meal', 'unlock-meal',
 ])
 
 const today = computed(() => {
@@ -138,7 +139,7 @@ function openMealEditor(mealIndex) {
         <div class="calorie-top">
           <span class="calorie-status" :style="{ color: calorieStatusColor }">{{ calorieStatusLabel }}</span>
           <span v-if="calorieDeviation != null" class="calorie-dev" :style="{ color: Math.abs(calorieDeviation) > 100 ? '#ff3b30' : 'var(--color-text)' }">
-            {{ calorieDeviation > 0 ? '+' : '' }}{{ calorieDeviation }}
+            {{ calorieDeviation > 0 ? '+' : '' }}{{ calorieDeviation }} kcal
           </span>
         </div>
         <span class="calorie-target">目标 {{ targetCalories ? Math.round(targetCalories) : '--' }} kcal</span>
@@ -182,6 +183,12 @@ function openMealEditor(mealIndex) {
             </small>
           </div>
           <span class="meal-arrow">›</span>
+          <div class="meal-actions">
+            <button class="meal-action-btn" :class="{ active: meal.locked }" @click.stop="meal.locked ? emit('unlock-meal', { dayIndex: todayIndex, mealIndex }) : emit('lock-meal', { dayIndex: todayIndex, mealIndex })" :title="meal.locked ? '解锁' : '锁定'">
+              {{ meal.locked ? '🔓' : '🔒' }}
+            </button>
+            <button class="meal-action-btn edit" @click.stop="openMealEditor(mealIndex)" title="编辑">✎</button>
+          </div>
         </div>
       </div>
       <p v-else class="empty-msg">今天还没有餐单</p>
@@ -466,6 +473,35 @@ function openMealEditor(mealIndex) {
   font-size: 1.15rem;
   font-weight: 300;
   line-height: 1;
+}
+.meal-actions {
+  display: flex;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+}
+.meal-action-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: #8e8e93;
+  transition: all 0.12s ease;
+}
+.meal-action-btn:active {
+  background: rgba(60, 60, 67, 0.08);
+}
+.meal-action-btn.active {
+  color: #ff9500;
+  background: rgba(255, 149, 0, 0.08);
+}
+.meal-action-btn.edit:active {
+  color: var(--color-primary);
 }
 
 /* Card footer */
