@@ -379,7 +379,7 @@ defineExpose({
                 </span>
                 <span class="food-card-actions">
                   <span
-                    v-if="isSelected(food.id) && getLevel(food.id) !== 'normal'"
+                    v-if="isSelected(food.id)"
                     class="level-badge"
                     :style="{ background: LEVEL_COLORS[getLevel(food.id)] + '18', color: LEVEL_COLORS[getLevel(food.id)] }"
                     @click.stop="cycleLevel(food.id)"
@@ -416,7 +416,7 @@ defineExpose({
           <span>{{ food.name }}</span>
           <span class="food-card-actions">
             <span
-              v-if="isSelected(food.id) && getLevel(food.id) !== 'normal'"
+              v-if="isSelected(food.id)"
               class="level-badge"
               :style="{ background: LEVEL_COLORS[getLevel(food.id)] + '18', color: LEVEL_COLORS[getLevel(food.id)] }"
               @click.stop="cycleLevel(food.id)"

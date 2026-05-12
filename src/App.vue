@@ -77,6 +77,7 @@ const titleMap = {
   checkinForm: '今日打卡',
   dataBackup: '数据备份/恢复',
   profileEdit: '修改资料',
+  planSettings: '饮食计划',
   customFood: '食材偏好',
 }
 
@@ -95,6 +96,7 @@ const subPageComponents = {
   checkinForm: CheckinProgress,
   dataBackup: ProfileView,
   profileEdit: InputForm,
+  planSettings: InputForm,
   customFood: FoodPreferences,
 }
 
@@ -728,6 +730,9 @@ function subPageProps(page) {
   if (name === 'profileEdit') {
     return { initialData: params.value, editMode: true }
   }
+  if (name === 'planSettings') {
+    return { initialData: params.value, editMode: true, section: 'plan' }
+  }
   if (name === 'customFood') {
     return {
       foodPreferences: foodPrefs.value || defaultFoodPreferences,
@@ -788,6 +793,7 @@ function subPageProps(page) {
           @checkin-save="handleCheckinTabSave"
           @custom-food="pushPage('customFood')"
           @profile-edit="pushPage('profileEdit')"
+          @plan-settings="pushPage('planSettings')"
           @data-backup="pushPage('dataBackup')"
           @clear-data="handleClearData"
           @import-data="handleImportData"
