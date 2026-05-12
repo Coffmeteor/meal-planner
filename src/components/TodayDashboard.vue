@@ -185,7 +185,7 @@ function openMealEditor(mealIndex) {
           <span class="meal-arrow">›</span>
           <div class="meal-actions">
             <button class="meal-action-btn" :class="{ active: meal.locked }" @click.stop="meal.locked ? emit('unlock-meal', { dayIndex: todayIndex, mealIndex }) : emit('lock-meal', { dayIndex: todayIndex, mealIndex })" :title="meal.locked ? '解锁' : '锁定'">
-              {{ meal.locked ? '🔓' : '🔒' }}
+              {{ meal.locked ? '🔒' : '🔓' }}
             </button>
             <button class="meal-action-btn edit" @click.stop="openMealEditor(mealIndex)" title="编辑">✎</button>
           </div>
@@ -248,14 +248,14 @@ function openMealEditor(mealIndex) {
 .today-title {
   margin: 0.15rem 0 0;
   color: var(--color-text);
-  font-size: 1.55rem;
+  font-size: 1.7rem;
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.15;
 }
 .today-subtitle {
   margin: 0.25rem 0 0;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 500;
 }
 
@@ -275,7 +275,7 @@ function openMealEditor(mealIndex) {
 .card-title {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -299,8 +299,8 @@ function openMealEditor(mealIndex) {
 .calorie-ring-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: 5rem;
-  height: 5rem;
+  width: 5.5rem;
+  height: 5.5rem;
 }
 .calorie-ring {
   width: 100%;
@@ -328,13 +328,13 @@ function openMealEditor(mealIndex) {
 }
 .ring-value {
   color: var(--color-text);
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
   line-height: 1;
 }
 .ring-unit {
   color: var(--color-muted);
-  font-size: 0.62rem;
+  font-size: 0.65rem;
   font-weight: 500;
   margin-top: 0.12rem;
 }
@@ -351,16 +351,16 @@ function openMealEditor(mealIndex) {
   gap: 0.5rem;
 }
 .calorie-status {
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 .calorie-dev {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
 }
 .calorie-target {
   color: var(--color-muted);
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -449,19 +449,19 @@ function openMealEditor(mealIndex) {
 }
 .meal-time-badge {
   color: var(--color-muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 500;
   line-height: 1;
 }
 .meal-name {
   color: var(--color-text);
-  font-size: 0.92rem;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.2;
 }
 .meal-ingredients {
   color: var(--color-muted);
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
@@ -480,15 +480,15 @@ function openMealEditor(mealIndex) {
   flex: 0 0 auto;
 }
 .meal-action-btn {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.8rem;
+  height: 1.8rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: 6px;
   background: transparent;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   cursor: pointer;
   color: #8e8e93;
   transition: all 0.12s ease;
@@ -513,12 +513,12 @@ function openMealEditor(mealIndex) {
 }
 .footer-btn {
   flex: 1 1 50%;
-  min-height: 2.2rem;
+  min-height: 2.4rem;
   border: none;
   border-radius: 8px;
   background: rgba(60, 60, 67, 0.06);
   color: var(--color-text);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s ease;
@@ -566,8 +566,8 @@ function openMealEditor(mealIndex) {
 }
 .status-icon-wrap {
   flex: 0 0 auto;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.8rem;
+  height: 1.8rem;
   display: flex;
   align-items: center;
   justify-content: center;

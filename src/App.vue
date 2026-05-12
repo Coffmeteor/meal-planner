@@ -624,7 +624,8 @@ function handleTodayOptimize(dayIndex) {
 }
 
 async function handleWeightLogsSave(updatedLogs) {
-  weightLogs.value = updatedLogs
+  await nextTick()
+  weightLogs.value = await loadWeightLogs()
   await nextTick()
   dataVersion.value++
   showToast('已保存体重')
@@ -632,7 +633,8 @@ async function handleWeightLogsSave(updatedLogs) {
 }
 
 async function handleCheckinSave(updated) {
-  checkins.value = updated
+  await nextTick()
+  checkins.value = await loadCheckins()
   await nextTick()
   dataVersion.value++
   showToast('已保存打卡')
@@ -640,14 +642,16 @@ async function handleCheckinSave(updated) {
 }
 
 async function handleWeightLogsTabSave(updatedLogs) {
-  weightLogs.value = updatedLogs
+  await nextTick()
+  weightLogs.value = await loadWeightLogs()
   await nextTick()
   dataVersion.value++
   showToast('已保存体重')
 }
 
 async function handleCheckinTabSave(updated) {
-  checkins.value = updated
+  await nextTick()
+  checkins.value = await loadCheckins()
   await nextTick()
   dataVersion.value++
   showToast('已保存打卡')

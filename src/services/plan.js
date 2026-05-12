@@ -101,8 +101,11 @@ export function optimizeTodayCalories(plan, dayIndex, targetCalories) {
   const lockedCalories = currentCalories - adjustableCalories
   const needed = targetCalories - lockedCalories
 
-  if (!adjustableMeals.length || needed <= 0 || adjustableCalories <= 0) {
-    return { plan, error: '没有可优化项目' }
+  if (!adjustableMeals.length) {
+    return { plan, error: '所有餐点已锁定，无法优化' }
+  }
+  if (needed <= 0 || adjustableCalories <= 0) {
+    return { plan, error: '已接近目标，无需优化' }
   }
 
   const ratio = Math.min(2.5, Math.max(0.5, needed / adjustableCalories))
