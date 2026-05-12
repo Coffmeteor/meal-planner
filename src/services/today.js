@@ -1,6 +1,6 @@
 // Service: Today — aggregates today's dashboard state
-import { analyzeWeightTrend } from '../../domain/body-records/index.js'
-import { analyzeRecentCheckins } from '../../domain/checkins/index.js'
+import { analyzeWeightTrend } from '../domain/body-records/index.js'
+import { analyzeRecentCheckins } from '../domain/checkins/index.js'
 
 /**
  * Generate today's dashboard state from current plan, body records, and checkins.

@@ -1,6 +1,6 @@
 // Service: Backup — orchestrates import/export/clear operations
-import { importAllData, clearAllData, exportAllData } from '../../adapters/storage/index.js'
-import { createBackupPayload } from '../../domain/backup/index.js'
+import { importAllData, clearAllData, exportAllData } from '../adapters/storage/index.js'
+import { createBackupPayload } from '../domain/backup/index.js'
 
 export async function exportData() {
   const data = await exportAllData()

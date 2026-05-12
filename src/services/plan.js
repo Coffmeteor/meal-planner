@@ -1,8 +1,8 @@
 // Service: Plan — orchestrates meal plan CRUD operations
 // Calls domain + adapter, contains no core algorithm.
-import { generateMealPlan, regenerateDay, regenerateSingleMeal } from '../../domain/meal-plan/index.js'
-import { calculateDayTotals } from '../../domain/meal-plan/mealDisplay.js'
-import { saveLatestPlan } from '../../adapters/storage/index.js'
+import { generateMealPlan, regenerateDay, regenerateSingleMeal } from '../domain/meal-plan/index.js'
+import { calculateDayTotals } from '../domain/meal-plan/mealDisplay.js'
+import { saveLatestPlan } from '../adapters/storage/index.js'
 
 /**
  * Create a new meal plan from profile, schedule, and food preferences.

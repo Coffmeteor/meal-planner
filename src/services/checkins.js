@@ -1,5 +1,5 @@
 // Service: Checkins — orchestrates daily check-in operations
-import { saveCheckin, deleteCheckin, loadCheckins } from '../../adapters/storage/index.js'
+import { saveCheckin, deleteCheckin, loadCheckins } from '../adapters/storage/index.js'
 
 export async function save(entry) {
   return saveCheckin(entry)

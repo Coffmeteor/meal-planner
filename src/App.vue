@@ -56,6 +56,7 @@ import {
 } from './stores/navigationStore.js'
 import { useToast } from './composables/useToast.js'
 import { useScrollRestore } from './composables/useScrollRestore.js'
+import * as planService from './services/plan.js'
 
 const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
@@ -497,20 +498,7 @@ function handleEditDayFood(dayIndex) {
 }
 
 function handleSaveMeal({ dayIndex, mealIndex, meal }) {
-  const day = plan.value[dayIndex]
-  if (!day?.meals?.[mealIndex] || !meal) return
-
-  const nextPlan = [...plan.value]
-  const nextMeals = [...day.meals]
-  nextMeals[mealIndex] = meal
-  nextPlan[dayIndex] = {
-    ...day,
-    meals: nextMeals,
-    totals: calculateDayTotals(nextMeals),
-    edited: true,
-    updatedAt: new Date().toISOString(),
-  }
-  plan.value = nextPlan
+  plan.value = planService.saveMeal(plan.value, dayIndex, mealIndex, meal)
   savePlan()
   showToast('已保存单餐')
   popPage()
@@ -551,11 +539,8 @@ function handleCancelDayFoodEdit() {
 }
 
 function handleRefreshRecipe() {
-  plan.value = generateMealPlan(
-    params.value,
-    schedule.value,
-    resolveAvailableFoods(),
-    currentEatingWindow(),
+  plan.value = planService.refreshPlan(
+    params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow(),
   )
   setPlanMeta(plan.value, {
     dietMethod: params.value?.dietMethod ?? planMeta.value?.dietMethod ?? null,
@@ -573,138 +558,49 @@ function handleRefreshDay(dayIndex) {
   const index = clampIndex(dayIndex)
   const day = plan.value[index]
   if (!day) return
-
-  const nextPlan = [...plan.value]
-  nextPlan[index] = regenerateDay(
-    params.value,
-    schedule.value,
-    resolveAvailableFoods(),
-    day,
-    { editSource: 'refreshDay' },
-    currentEatingWindow(),
+  plan.value = plan.value.map((d, i) =>
+    i === index
+      ? planService.refreshDay(params.value, schedule.value, resolveAvailableFoods(), d, currentEatingWindow())
+      : d,
   )
-  plan.value = nextPlan
   savePlan()
   showToast('已刷新当天餐单')
 }
 
 function handleReplaceMeal({ dayIndex, mealIndex }) {
-  plan.value = regenerateSingleMeal(
-    plan.value,
-    clampIndex(dayIndex),
-    Number(mealIndex) || 0,
-    params.value,
-    schedule.value,
-    resolveAvailableFoods(),
-    currentEatingWindow(),
+  plan.value = planService.replaceMeal(
+    plan.value, clampIndex(dayIndex), Number(mealIndex) || 0,
+    params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow(),
   )
   savePlan()
   showToast('已更换这一餐')
 }
 
 function handleLockMeal({ dayIndex, mealIndex }) {
-  setMealLock(dayIndex, mealIndex, true)
+  plan.value = planService.setMealLock(plan.value, clampIndex(dayIndex), mealIndex, true)
+  savePlan()
   showToast('已锁定这一餐')
 }
 
 function handleUnlockMeal({ dayIndex, mealIndex }) {
-  setMealLock(dayIndex, mealIndex, false)
-  showToast('已取消锁定')
-}
-
-function setMealLock(dayIndex, mealIndex, locked) {
-  const index = clampIndex(dayIndex)
-  const day = plan.value[index]
-  if (!day?.meals?.[mealIndex]) return
-
-  const nextMeals = [...day.meals]
-  nextMeals[mealIndex] = { ...nextMeals[mealIndex], locked }
-  const nextPlan = [...plan.value]
-  nextPlan[index] = { ...day, meals: nextMeals, updatedAt: new Date().toISOString() }
-  plan.value = nextPlan
+  plan.value = planService.setMealLock(plan.value, clampIndex(dayIndex), mealIndex, false)
   savePlan()
+  showToast('已取消锁定')
 }
 
 function handleTodayOptimize(dayIndex) {
   const index = clampIndex(dayIndex)
-  const day = plan.value[index]
-  const targetCalories = Number(day?.targets?.calories || planMeta.value?.targetCalories || params.value?.targetCalories)
-  const currentCalories = Number(day?.totals?.calories || 0)
-  if (!day || !targetCalories || !currentCalories) {
-    showToast('暂时无法优化今日热量')
+  const targetCalories = Number(
+    plan.value[index]?.targets?.calories || planMeta.value?.targetCalories || params.value?.targetCalories,
+  )
+  const { plan: nextPlan, error } = planService.optimizeTodayCalories(plan.value, index, targetCalories)
+  if (error) {
+    showToast(error)
     return
-  }
-
-  const adjustableMeals = day.meals.filter((meal) => !meal?.locked)
-  const adjustableCalories = adjustableMeals.reduce((sum, meal) => sum + Number(meal.calories || 0), 0)
-  const lockedCalories = currentCalories - adjustableCalories
-  const needed = targetCalories - lockedCalories
-  if (!adjustableMeals.length || needed <= 0 || adjustableCalories <= 0) {
-    showToast('今日餐单没有可优化项目')
-    return
-  }
-
-  const ratio = Math.min(2.5, Math.max(0.5, needed / adjustableCalories))
-  const nextMeals = day.meals.map((meal) => (meal?.locked ? meal : scaleMeal(meal, ratio)))
-  const nextPlan = [...plan.value]
-  nextPlan[index] = {
-    ...day,
-    meals: nextMeals,
-    totals: calculateDayTotals(nextMeals),
-    edited: true,
-    editSource: 'todayOptimize',
-    updatedAt: new Date().toISOString(),
   }
   plan.value = nextPlan
   savePlan()
   showToast('已优化今日热量')
-}
-
-function scaleMeal(meal, ratio) {
-  const scaleFood = (food) => {
-    const portion = Math.max(1, Math.round((Number(food.portion || food.defaultPortion || 100) * ratio) / 5) * 5)
-    const previousPortion = Math.max(1, Number(food.portion || food.defaultPortion || 100))
-    const foodRatio = portion / previousPortion
-    return {
-      ...food,
-      portion,
-      calories: Math.round(Number(food.calories || 0) * foodRatio),
-      protein: Math.round(Number(food.protein || 0) * foodRatio * 10) / 10,
-      carbs: Math.round(Number(food.carbs || 0) * foodRatio * 10) / 10,
-      fat: Math.round(Number(food.fat || 0) * foodRatio * 10) / 10,
-    }
-  }
-  const foods = (meal.foods || meal.items || []).map(scaleFood)
-  if (!foods.length) {
-    return {
-      ...meal,
-      calories: Math.round(Number(meal.calories || 0) * ratio),
-      protein: Math.round(Number(meal.protein || 0) * ratio * 10) / 10,
-      carbs: Math.round(Number(meal.carbs || 0) * ratio * 10) / 10,
-      fat: Math.round(Number(meal.fat || 0) * ratio * 10) / 10,
-      edited: true,
-    }
-  }
-  const totals = foods.reduce(
-    (sum, food) => ({
-      calories: sum.calories + Number(food.calories || 0),
-      protein: sum.protein + Number(food.protein || 0),
-      carbs: sum.carbs + Number(food.carbs || 0),
-      fat: sum.fat + Number(food.fat || 0),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  )
-  return {
-    ...meal,
-    foods,
-    items: foods,
-    calories: totals.calories,
-    protein: totals.protein,
-    carbs: totals.carbs,
-    fat: totals.fat,
-    portion: foods.map((food) => `${food.name}${Math.round(food.portion || 0)}${food.unit || 'g'}`).join(' + '),
-    edited: true,
-  }
 }
 
 function handleWeightLogsSave(updatedLogs) {
