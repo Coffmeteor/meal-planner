@@ -43,10 +43,8 @@ import {
   generateMealPlan,
   generateScheduleFromProfile,
   regenerateDay,
-  regenerateSingleMeal,
 } from './utils/planGenerator.js'
 import { DEFAULT_FOODS } from './utils/foodMeta.js'
-import { calculateDayTotals } from './utils/mealDisplay.js'
 import { normalizeDietMethod, normalizeEatingWindow } from './utils/scheduleUtils.js'
 import {
   clearPageStack,
