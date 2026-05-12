@@ -92,6 +92,8 @@ const checkinStatusText = computed(() => {
   const labels = { full: '完成', partial: '部分完成', missed: '未完成' }
   return labels[todayCheckin.value.mealCompleted] || '已打卡'
 })
+const totalWeightEntries = computed(() => validWeightLogs.value.length)
+const totalCheckinEntries = computed(() => props.checkins.length)
 
 function todayYmd() {
   const date = new Date()
@@ -103,7 +105,7 @@ function todayYmd() {
 
 function formatKg(value) {
   const number = Number(value)
-  return Number.isFinite(number) ? `${Math.round(number * 10) / 10} kg` : '--'
+  return Number.isFinite(number) ? `${Math.round(number * 10) / 10}` : '--'
 }
 
 function scoreText(value) {
@@ -120,93 +122,252 @@ function scoreText(value) {
       </div>
     </div>
 
-    <div class="progress-dashboard-actions">
-      <button type="button" class="primary-action" @click="emit('recordWeight')">
-        添加体重
-      </button>
-      <button type="button" class="ghost-action" @click="emit('recordWeight')">
-        查看体重记录
-      </button>
-      <button type="button" class="ghost-action" @click="emit('checkinToday')">
-        今日打卡
-      </button>
-    </div>
-
-    <section class="progress-dashboard-card weight-trend-card">
+    <!-- Weight Summary Card -->
+    <section class="progress-dashboard-card weight-hero-card">
       <div class="progress-card-head">
         <div>
-          <p>体重趋势</p>
-          <h2>{{ currentWeight == null ? '添加第一条体重记录' : formatKg(currentWeight) }}</h2>
+          <p>体重</p>
+          <h2 class="big-number">{{ currentWeight == null ? '--' : formatKg(currentWeight) }}<small> kg</small></h2>
         </div>
-        <span>{{ trendText }}</span>
+        <span class="trend-badge" :class="trendInfo.trend">{{ trendText }}</span>
       </div>
 
-      <div class="progress-stat-grid">
-        <div>
-          <span>目标体重</span>
-          <strong>{{ formatKg(targetWeight) }}</strong>
+      <div class="stat-row">
+        <div class="stat-cell">
+          <span>目标</span>
+          <strong>{{ formatKg(targetWeight) }}<small>kg</small></strong>
         </div>
-        <div>
-          <span>7 日均重</span>
-          <strong>{{ formatKg(recentAverageWeight) }}</strong>
+        <div class="stat-cell">
+          <span>7日均值</span>
+          <strong>{{ formatKg(recentAverageWeight) }}<small>kg</small></strong>
         </div>
-        <div>
-          <span>距离目标</span>
-          <strong>{{ formatKg(remainingWeight) }}</strong>
+        <div class="stat-cell">
+          <span>距目标</span>
+          <strong>{{ remainingWeight != null ? formatKg(remainingWeight) : '--' }}<small>kg</small></strong>
         </div>
       </div>
 
-      <p class="progress-advice">{{ weightAdvice }}</p>
+      <p v-if="weightAdvice" class="progress-advice">{{ weightAdvice }}</p>
       <button
-        v-if="currentWeight == null"
         type="button"
-        class="primary-action full-width"
+        class="ghost-action full-width"
         @click="emit('recordWeight')"
       >
-        添加第一条体重记录
+        {{ currentWeight == null ? '添加第一条体重记录' : '记录体重' }}
       </button>
     </section>
 
+    <!-- Execution Summary Card -->
     <section class="progress-dashboard-card execution-review-card">
       <div class="progress-card-head">
         <div>
           <p>执行复盘</p>
-          <h2>近 7 天执行率 {{ executionRateText }}</h2>
+          <h2 class="big-number">{{ executionRateText }}<small> 近7天执行率</small></h2>
         </div>
-        <span>{{ checkinStatusText }}</span>
+        <span class="status-badge">{{ checkinStatusText }}</span>
       </div>
 
-      <div class="progress-stat-grid">
-        <div>
+      <div class="stat-row stat-row-2col">
+        <div class="stat-cell">
           <span>记录天数</span>
-          <strong>{{ checkinAnalysis.count }} 天</strong>
+          <strong>{{ checkinAnalysis.count }}</strong>
         </div>
-        <div>
+        <div class="stat-cell">
           <span>外食</span>
           <strong>{{ checkinAnalysis.ateOutCount }} 次</strong>
         </div>
-        <div>
+        <div class="stat-cell">
           <span>运动</span>
           <strong>{{ checkinAnalysis.exerciseCount }} 次</strong>
         </div>
-        <div>
+        <div class="stat-cell">
           <span>平均饥饿</span>
           <strong>{{ scoreText(checkinAnalysis.avgHunger) }}</strong>
         </div>
-        <div>
+        <div class="stat-cell">
           <span>平均执行</span>
           <strong>{{ scoreText(checkinAnalysis.avgAdherence) }}</strong>
         </div>
-        <div>
+        <div class="stat-cell">
           <span>平均睡眠</span>
           <strong>{{ scoreText(checkinAnalysis.avgSleep) }}</strong>
         </div>
       </div>
 
-      <p class="progress-advice">{{ checkinAdvice }}</p>
+      <p v-if="checkinAdvice" class="progress-advice">{{ checkinAdvice }}</p>
       <button type="button" class="ghost-action full-width" @click="emit('checkinToday')">
         查看打卡记录
       </button>
     </section>
+
+    <!-- Quick Stats -->
+    <section class="progress-dashboard-card">
+      <div class="progress-card-head">
+        <div>
+          <p>记录统计</p>
+          <h2>数据概览</h2>
+        </div>
+      </div>
+      <div class="stat-row stat-row-2col">
+        <div class="stat-cell">
+          <span>体重记录</span>
+          <strong>{{ totalWeightEntries }} 条</strong>
+        </div>
+        <div class="stat-cell">
+          <span>打卡记录</span>
+          <strong>{{ totalCheckinEntries }} 条</strong>
+        </div>
+      </div>
+    </section>
   </section>
 </template>
+
+<style scoped>
+.progress-page {
+  padding-bottom: 0.5rem;
+}
+
+.progress-dashboard-card {
+  display: grid;
+  gap: var(--spacing-md);
+  min-width: 0;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.progress-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.progress-card-head > div {
+  min-width: 0;
+}
+
+.progress-card-head p {
+  margin: 0 0 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.progress-card-head h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.big-number {
+  font-size: 2rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  line-height: 1.1 !important;
+}
+
+.big-number small {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.trend-badge,
+.status-badge {
+  flex: 0 1 auto;
+  min-height: 1.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.trend-badge {
+  color: var(--color-primary-deep);
+  background: var(--color-primary-soft);
+}
+
+.trend-badge.down { color: var(--color-primary-deep); background: var(--color-primary-soft); }
+.trend-badge.stable { color: var(--color-warning); background: var(--orange-soft); }
+.trend-badge.up { color: var(--color-danger); background: rgba(255, 59, 48, 0.08); }
+.trend-badge.insufficient { color: var(--color-muted); background: rgba(142, 142, 147, 0.08); }
+
+.status-badge {
+  color: var(--color-primary-deep);
+  background: var(--color-primary-soft);
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.stat-row-2col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stat-cell {
+  min-width: 0;
+  padding: 0.6rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  text-align: center;
+}
+
+.stat-cell span,
+.stat-cell strong {
+  display: block;
+}
+
+.stat-cell span {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.stat-cell strong {
+  margin-top: 0.12rem;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-cell strong small {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.progress-advice {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.full-width {
+  width: 100%;
+}
+
+@media (max-width: 24rem) {
+  .stat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-row-2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

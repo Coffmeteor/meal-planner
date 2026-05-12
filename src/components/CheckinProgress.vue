@@ -422,7 +422,7 @@ textarea {
 .toggle-button.active,
 .score-buttons button.active {
   border-color: var(--color-primary);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--color-primary-soft);
   color: var(--color-primary-deep);
 }
 
@@ -524,11 +524,12 @@ textarea {
   grid-template-columns: 0.8fr 1.2fr;
   gap: 0.65rem;
   padding: 0.65rem;
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-separator);
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -1px 8px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
 }
 
 .form-action-bar.single {

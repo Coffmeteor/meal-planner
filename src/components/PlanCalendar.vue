@@ -552,9 +552,9 @@ function handleEditDayFood() {
 .meal-action-btn {
   min-height: 2.25rem;
   padding: 0 0.85rem;
-  border: 1px solid rgba(34, 197, 94, 0.28);
+  border: 1px solid var(--color-primary-border);
   border-radius: 999rem;
-  background: rgba(34, 197, 94, 0.08);
+  background: var(--color-primary-soft);
   color: var(--color-primary-deep);
   cursor: pointer;
   font-size: 0.78rem;

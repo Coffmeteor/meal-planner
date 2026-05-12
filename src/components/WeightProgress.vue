@@ -41,6 +41,10 @@ const emit = defineEmits(['save', 'close'])
 const form = reactive({
   date: todayYmd(),
   weight: '',
+  waist: '',
+  hip: '',
+  chest: '',
+  bodyFat: '',
   hungerLevel: null,
   adherenceLevel: null,
   note: '',
@@ -155,6 +159,10 @@ function setScore(field, value) {
 function resetForm() {
   form.date = todayYmd()
   form.weight = ''
+  form.waist = ''
+  form.hip = ''
+  form.chest = ''
+  form.bodyFat = ''
   form.hungerLevel = null
   form.adherenceLevel = null
   form.note = ''
@@ -178,13 +186,22 @@ async function handleSave() {
   saving.value = true
   error.value = ''
   try {
-    const updatedLogs = await saveWeightLog({
+    const entry = {
       date: form.date,
       weight: Math.round(weight * 10) / 10,
       hungerLevel: form.hungerLevel,
       adherenceLevel: form.adherenceLevel,
       note: form.note.trim(),
-    })
+    }
+    const waist = Number(form.waist)
+    const hip = Number(form.hip)
+    const chest = Number(form.chest)
+    const bodyFat = Number(form.bodyFat)
+    if (Number.isFinite(waist) && waist > 0) entry.waist = Math.round(waist * 10) / 10
+    if (Number.isFinite(hip) && hip > 0) entry.hip = Math.round(hip * 10) / 10
+    if (Number.isFinite(chest) && chest > 0) entry.chest = Math.round(chest * 10) / 10
+    if (Number.isFinite(bodyFat) && bodyFat > 0) entry.bodyFat = Math.round(bodyFat * 10) / 10
+    const updatedLogs = await saveWeightLog(entry)
     resetForm()
     emit('save', updatedLogs)
   } catch (e) {
@@ -217,8 +234,8 @@ async function handleDelete(log) {
   <section class="weight-progress">
     <div class="section-title compact progress-title">
       <div>
-        <p>体重趋势</p>
-        <h2>进度记录</h2>
+        <p>记录</p>
+        <h2>身体记录</h2>
       </div>
       <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
     </div>
@@ -338,7 +355,7 @@ async function handleDelete(log) {
           <input v-model="form.date" type="date">
         </label>
         <label>
-          <span>体重</span>
+          <span>体重 (kg)</span>
           <input
             v-model="form.weight"
             type="number"
@@ -349,6 +366,28 @@ async function handleDelete(log) {
           >
         </label>
       </div>
+
+      <details class="body-measure-details">
+        <summary>围度与体脂（可选）</summary>
+        <div class="form-grid body-grid">
+          <label>
+            <span>腰围 (cm)</span>
+            <input v-model="form.waist" type="number" min="1" step="0.1" inputmode="decimal" placeholder="cm">
+          </label>
+          <label>
+            <span>臀围 (cm)</span>
+            <input v-model="form.hip" type="number" min="1" step="0.1" inputmode="decimal" placeholder="cm">
+          </label>
+          <label>
+            <span>胸围 (cm)</span>
+            <input v-model="form.chest" type="number" min="1" step="0.1" inputmode="decimal" placeholder="cm">
+          </label>
+          <label>
+            <span>体脂率 (%)</span>
+            <input v-model="form.bodyFat" type="number" min="1" step="0.1" inputmode="decimal" placeholder="%">
+          </label>
+        </div>
+      </details>
 
       <div class="score-block">
         <span>饥饿感</span>
@@ -403,7 +442,11 @@ async function handleDelete(log) {
       <article v-for="log in sortedLogs" :key="log.id || log.date" class="log-item">
         <div>
           <strong>{{ log.date }} · {{ formatKg(log.weight) }}</strong>
-          <span>饥饿 {{ scoreText(log.hungerLevel) }} · 执行 {{ scoreText(log.adherenceLevel) }}</span>
+          <span>
+            饥饿 {{ scoreText(log.hungerLevel) }} · 执行 {{ scoreText(log.adherenceLevel) }}
+            <template v-if="log.waist"> · 腰围 {{ log.waist }}cm</template>
+            <template v-if="log.bodyFat"> · 体脂 {{ log.bodyFat }}%</template>
+          </span>
           <p v-if="log.note">{{ log.note }}</p>
         </div>
         <button type="button" class="delete-action" :disabled="saving || !log.id" @click="handleDelete(log)">
@@ -653,7 +696,7 @@ textarea {
 
 .score-buttons button.active {
   border-color: var(--color-primary);
-  background: rgba(34, 197, 94, 0.1);
+  background: var(--color-primary-soft);
   color: var(--color-primary-deep);
 }
 
@@ -674,11 +717,39 @@ textarea {
   grid-template-columns: 0.8fr 1.2fr;
   gap: 0.65rem;
   padding: 0.65rem;
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-separator);
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -1px 8px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+}
+
+.body-measure-details {
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-sm);
+  padding: 0;
+}
+
+.body-measure-details summary {
+  padding: 0.65rem 0.85rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.body-measure-details summary::before {
+  content: "+ ";
+}
+
+.body-measure-details[open] summary::before {
+  content: "− ";
+}
+
+.body-grid {
+  padding: 0 0.85rem 0.75rem;
 }
 
 .form-action-bar.single {

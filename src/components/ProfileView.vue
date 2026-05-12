@@ -1,6 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { ACTIVITY_LEVELS } from '../utils/calc.js'
+import { ref } from 'vue'
 import { APP_VERSION } from '../utils/appVersion.js'
 import {
   createBackupPayload,
@@ -26,30 +25,6 @@ const emit = defineEmits(['editProfile', 'clearData', 'importData'])
 const fileInput = ref(null)
 const backupError = ref('')
 const importSummary = ref(null)
-
-const genderLabels = {
-  female: '女性',
-  male: '男性',
-}
-
-const profileRows = computed(() => {
-  const profile = props.profile || {}
-  return [
-    { label: '性别', value: genderLabels[profile.gender] || '--' },
-    { label: '年龄', value: formatValue(profile.age, '岁') },
-    { label: '身高', value: formatValue(profile.height, 'cm') },
-    { label: '当前体重', value: formatValue(profile.weight, 'kg') },
-    { label: '目标体重', value: formatValue(profile.targetWeight, 'kg') },
-    { label: '日常活动', value: ACTIVITY_LEVELS[profile.activity]?.label || '--' },
-    { label: '计划天数', value: formatValue(props.planMeta?.days || profile.days, '天') },
-  ]
-})
-
-function formatValue(value, unit) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return '--'
-  return `${number}${unit}`
-}
 
 async function handleExport() {
   backupError.value = ''
@@ -127,42 +102,22 @@ function formatDateYmd(date) {
 </script>
 
 <template>
-  <section class="profile-view">
-    <div class="section-title compact">
-      <p>个人设置</p>
-      <h2>我的</h2>
-    </div>
-
-    <div class="profile-panel">
-      <div class="profile-grid">
-        <div v-for="row in profileRows" :key="row.label" class="profile-item">
-          <span>{{ row.label }}</span>
-          <strong>{{ row.value }}</strong>
-        </div>
-      </div>
-      <button type="button" class="primary-action" @click="emit('editProfile')">
-        修改资料
+  <section class="data-backup-view">
+    <div class="backup-card">
+      <h3>导出数据</h3>
+      <p>将资料、餐单、食材、体重和打卡记录导出为 JSON 文件。</p>
+      <p>数据仅在本地处理，不会上传。</p>
+      <button type="button" class="ghost-action full-width" @click="handleExport">
+        导出备份
       </button>
     </div>
 
-    <div class="profile-panel note-panel">
-      <strong>本地存储</strong>
-      <p>资料、餐单、食材、体重和打卡记录仅保存在当前浏览器。</p>
-    </div>
-
-    <div class="profile-panel backup-panel">
-      <div>
-        <strong>数据备份</strong>
-        <p>导出和导入都只在当前浏览器本地处理，不会上传数据。</p>
-      </div>
-      <div class="backup-actions">
-        <button type="button" class="ghost-action" @click="handleExport">
-          导出数据
-        </button>
-        <button type="button" class="ghost-action" @click="openImportFile">
-          导入数据
-        </button>
-      </div>
+    <div class="backup-card">
+      <h3>导入数据</h3>
+      <p>从 JSON 备份文件恢复数据。导入会覆盖当前本地数据。</p>
+      <button type="button" class="ghost-action full-width" @click="openImportFile">
+        选择备份文件
+      </button>
       <input
         ref="fileInput"
         class="backup-file-input"
@@ -176,83 +131,44 @@ function formatDateYmd(date) {
         体重 {{ importSummary.included.weightLogs }} 条 ·
         打卡 {{ importSummary.included.checkins }} 条
       </p>
-      <p v-if="backupError" class="backup-error">{{ backupError }}</p>
     </div>
 
-    <div class="profile-panel settings-panel">
-      <button type="button" class="danger-action" @click="emit('clearData')">
+    <p v-if="backupError" class="backup-error">{{ backupError }}</p>
+
+    <div class="backup-card danger-card">
+      <button type="button" class="danger-action full-width" @click="emit('clearData')">
         清空全部数据
       </button>
-      <span>{{ APP_VERSION }}</span>
+      <span class="version-label">{{ APP_VERSION }}</span>
     </div>
   </section>
 </template>
 
 <style scoped>
-.profile-view {
+.data-backup-view {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
-.profile-panel {
-  display: grid;
-  gap: 0.9rem;
+.backup-card {
   padding: 1rem;
-  border-radius: 0.8rem;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(43, 54, 45, 0.08);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
 }
 
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+.backup-card h3 {
+  margin: 0 0 0.35rem;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
-.profile-item {
-  min-width: 0;
-  padding: 0.75rem;
-  border-radius: 0.75rem;
-  background: #f6f8f4;
-}
-
-.profile-item span,
-.settings-panel span {
-  display: block;
-  color: #68736b;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.profile-item strong {
-  display: block;
-  margin-top: 0.2rem;
-  color: #223026;
-  font-size: 0.98rem;
-  line-height: 1.25;
-}
-
-.note-panel strong {
-  color: #223026;
-}
-
-.note-panel p,
-.backup-panel p {
-  margin: 0;
-  color: #68736b;
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
-.backup-panel strong {
-  color: #223026;
-}
-
-.backup-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+.backup-card p {
+  margin: 0 0 0.65rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .backup-file-input {
@@ -268,36 +184,47 @@ function formatDateYmd(date) {
 }
 
 .backup-summary {
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.7rem;
-  background: #f6fbf5;
-  font-weight: 800;
+  margin: 0.65rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .backup-error {
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.7rem;
-  background: #fff0d8;
-  color: #b33b2e !important;
-  font-weight: 900;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--color-danger);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.danger-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .danger-action {
-  min-height: 2.75rem;
-  border: 1px solid #f0c8bf;
-  border-radius: 0.85rem;
-  background: #fff7f5;
-  color: #b33b2e;
-  font-weight: 900;
+  min-height: 2.6rem;
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 59, 48, 0.06);
+  color: var(--color-danger);
+  font-weight: 700;
 }
 
-.settings-panel {
-  text-align: center;
+.version-label {
+  color: var(--color-muted);
+  font-size: 0.72rem;
 }
 
-@media (max-width: 360px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
+.full-width {
+  width: 100%;
 }
 </style>

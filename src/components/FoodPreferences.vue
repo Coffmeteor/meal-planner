@@ -52,6 +52,7 @@ const localPrefs = reactive({
   selectedFoodIds: [],
   customFoods: [],
   updatedAt: null,
+  preferenceLevels: {},
 })
 const form = reactive({
   name: '',
@@ -70,6 +71,9 @@ watch(
       : []
     localPrefs.customFoods = Array.isArray(prefs.customFoods) ? [...prefs.customFoods] : []
     localPrefs.updatedAt = prefs.updatedAt ?? null
+    localPrefs.preferenceLevels = prefs.preferenceLevels && typeof prefs.preferenceLevels === 'object'
+      ? { ...prefs.preferenceLevels }
+      : {}
   },
   { immediate: true },
 )
@@ -128,10 +132,30 @@ const isDirty = computed(() => {
 
   return JSON.stringify(currentSelected) !== JSON.stringify(savedSelected)
     || JSON.stringify(currentCustom) !== JSON.stringify(savedCustom)
+    || JSON.stringify(localPrefs.preferenceLevels || {}) !== JSON.stringify(props.foodPreferences.preferenceLevels || {})
 })
+
+const LEVEL_LABELS = { frequent: '常吃', normal: '普通', reduce: '少吃', exclude: '不吃' }
+const LEVEL_ORDER = ['normal', 'frequent', 'reduce', 'exclude']
+const LEVEL_COLORS = { frequent: '#34c759', normal: '#8e8e93', reduce: '#ff9500', exclude: '#ff3b30' }
 
 function isSelected(id) {
   return localPrefs.selectedFoodIds.includes(id)
+}
+
+function getLevel(foodId) {
+  return localPrefs.preferenceLevels[foodId] || 'normal'
+}
+
+function cycleLevel(foodId) {
+  const current = getLevel(foodId)
+  const idx = LEVEL_ORDER.indexOf(current)
+  const next = LEVEL_ORDER[(idx + 1) % LEVEL_ORDER.length]
+  if (next === 'normal') {
+    delete localPrefs.preferenceLevels[foodId]
+  } else {
+    localPrefs.preferenceLevels = { ...localPrefs.preferenceLevels, [foodId]: next }
+  }
 }
 
 function categoryLabel(food) {
@@ -262,6 +286,7 @@ function preferencesPayload() {
     selectedFoodIds: [...localPrefs.selectedFoodIds],
     customFoods: [...localPrefs.customFoods],
     updatedAt: localPrefs.updatedAt,
+    preferenceLevels: { ...localPrefs.preferenceLevels },
   }
 }
 
@@ -352,14 +377,24 @@ defineExpose({
                   {{ food.name }}
                   <small class="food-card-meta">{{ categoryLabel(food) }}</small>
                 </span>
-                <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+                <span class="food-card-actions">
+                  <span
+                    v-if="isSelected(food.id) && getLevel(food.id) !== 'normal'"
+                    class="level-badge"
+                    :style="{ background: LEVEL_COLORS[getLevel(food.id)] + '18', color: LEVEL_COLORS[getLevel(food.id)] }"
+                    @click.stop="cycleLevel(food.id)"
+                  >{{ LEVEL_LABELS[getLevel(food.id)] }}</span>
+                  <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+                </span>
               </button>
               <article v-else class="food-card food-card-static selected">
                 <span>
                   {{ food.name }}
                   <small class="food-card-meta">{{ categoryLabel(food) }} · 自定义</small>
                 </span>
-                <i>✓</i>
+                <span class="food-card-actions">
+                  <i>✓</i>
+                </span>
               </article>
             </template>
           </div>
@@ -379,7 +414,15 @@ defineExpose({
           @click="toggleFood(food.id)"
         >
           <span>{{ food.name }}</span>
-          <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+          <span class="food-card-actions">
+            <span
+              v-if="isSelected(food.id) && getLevel(food.id) !== 'normal'"
+              class="level-badge"
+              :style="{ background: LEVEL_COLORS[getLevel(food.id)] + '18', color: LEVEL_COLORS[getLevel(food.id)] }"
+              @click.stop="cycleLevel(food.id)"
+            >{{ LEVEL_LABELS[getLevel(food.id)] }}</span>
+            <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+          </span>
         </button>
       </div>
     </template>
@@ -572,7 +615,7 @@ defineExpose({
 }
 
 .food-tabs button.active {
-  border-color: rgba(91, 166, 111, 0.55);
+  border-color: var(--color-primary);
   color: #fff;
   background: var(--green);
 }
@@ -599,7 +642,7 @@ defineExpose({
 }
 
 .food-card.selected {
-  border-color: rgba(91, 166, 111, 0.65);
+  border-color: var(--color-primary);
   background: #edf7ed;
   color: var(--green-deep);
 }
@@ -608,12 +651,30 @@ defineExpose({
   width: 1.25rem;
   height: 1.25rem;
   flex: 0 0 auto;
-  border: 1px solid rgba(91, 166, 111, 0.45);
+  border: 1px solid var(--color-primary-border);
   border-radius: 50%;
   color: var(--green-deep);
   font-style: normal;
   line-height: 1.15rem;
   text-align: center;
+}
+
+.food-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.level-badge {
+  min-height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.4rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .custom-section,

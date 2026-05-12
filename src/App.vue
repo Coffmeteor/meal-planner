@@ -69,11 +69,11 @@ const tabs = [
 const titleMap = {
   mealEditor: '编辑单餐',
   dayFoodEditor: '编辑今日菜单',
-  weightEntry: '记录体重',
+  weightEntry: '身体记录',
   checkinForm: '今日打卡',
   dataBackup: '数据备份/恢复',
   profileEdit: '修改资料',
-  customFood: '自定义食材',
+  customFood: '食材偏好',
 }
 
 const tabComponents = {
@@ -726,13 +726,13 @@ function scaleMeal(meal, ratio) {
 function handleWeightLogsSave(updatedLogs) {
   weightLogs.value = updatedLogs
   showToast('已保存体重')
-  popPage()
+  nextTick(() => popPage())
 }
 
 function handleCheckinSave(updated) {
   checkins.value = updated
   showToast('已保存打卡')
-  popPage()
+  nextTick(() => popPage())
 }
 
 function handleWeightLogsTabSave(updatedLogs) {
@@ -756,7 +756,7 @@ function handleSubPageSave(payload, options) {
 function handleSubPageDone(payload) {
   if (activePage.value?.name === 'weightEntry') handleWeightLogsSave(payload)
   else if (activePage.value?.name === 'checkinForm') handleCheckinSave(payload)
-  else popPage()
+  else nextTick(() => popPage())
 }
 
 function handleSubPageCancel() {
@@ -795,6 +795,10 @@ async function handleClearData() {
   clearPageStack()
   view.value = 'input'
   showToast('已清空全部数据')
+}
+
+function handleImportDataPrompt() {
+  pushPage('dataBackup')
 }
 
 function handleViewTodayPlan() {
@@ -909,6 +913,8 @@ function subPageProps(page) {
           @data-backup="pushPage('dataBackup')"
           @clear-data="handleClearData"
           @import-data="handleImportData"
+          @import-data-prompt="handleImportDataPrompt"
+          @view-plan="handleViewTodayPlan"
         />
       </section>
 
@@ -1003,26 +1009,26 @@ function subPageProps(page) {
 
 .toast-overlay {
   position: fixed;
-  bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-md));
   left: 50%;
   z-index: 999;
   max-width: calc(100vw - 2rem);
-  padding: 0.75rem 1.25rem;
+  padding: 0.6rem 1rem;
   border-radius: var(--radius-pill);
-  background: rgba(28, 28, 30, 0.92);
+  background: rgba(28, 28, 30, 0.88);
   color: #fff;
-  box-shadow: var(--shadow-glass);
-  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   transform: translateX(-50%);
-  animation: toast-in 0.25s ease;
+  animation: toast-in 0.2s ease;
 }
 
 .has-tabs .toast-overlay {
-  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-xl));
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-md));
 }
 
 @keyframes toast-in {
