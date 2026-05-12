@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, provide, ref, watch } from 'vue'
 import CheckinProgress from './components/CheckinProgress.vue'
 import DayFoodEditor from './components/DayFoodEditor.vue'
 import FoodsPage from './components/FoodsPage.vue'
@@ -21,6 +21,10 @@ import {
   popPage,
   pushPage,
 } from './stores/navigationStore.js'
+import * as appStore from './stores/appStore.js'
+import * as foodStore from './stores/foodStore.js'
+import * as planStore from './stores/planStore.js'
+import * as progressStore from './stores/progressStore.js'
 import {
   clearAllData,
   exportAllData,
@@ -79,6 +83,11 @@ const saving = ref(false)
 const toastMsg = ref('')
 const editingMeal = ref(null)
 const editingDayFood = ref(null)
+
+provide('appStore', appStore)
+provide('foodStore', foodStore)
+provide('planStore', planStore)
+provide('progressStore', progressStore)
 
 const tabs = [
   { value: 'today', label: '今日', icon: '今' },
@@ -145,6 +154,7 @@ const pageKey = computed(() => {
 
 watch(activeTab, (tab) => {
   if (!tabs.some((item) => item.value === tab)) return
+  appStore.switchTab(tab)
   if (tab !== 'plan') {
     editingMeal.value = null
     editingDayFood.value = null
