@@ -10,6 +10,9 @@
   --orange: #f0a24a;
   --orange-soft: #fff0d8;
   --yellow: #e7c65a;
+  --top-bar-h: 48px;
+  --bottom-tab-h: 56px;
+  --app-card-radius: 12px;
   --shadow: 0 0.75rem 1.75rem rgba(83, 67, 39, 0.12);
   --shadow-soft: 0 0.35rem 1rem rgba(83, 67, 39, 0.08);
   font-family:
@@ -67,8 +70,14 @@ button:disabled {
 }
 
 .app-shell.has-tabs {
-  height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  padding-bottom: 0;
+  height: 100svh;
+  min-height: 100svh;
+  padding: env(safe-area-inset-top) 0 0;
+  background: #f5f6f4;
+}
+
+.app-shell.has-sub-page {
+  background: #f7f8f5;
 }
 
 .app-header {
@@ -85,6 +94,68 @@ button:disabled {
   min-height: 0;
   max-width: 100%;
   overflow-x: hidden;
+}
+
+.page-viewport {
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem 1rem calc(var(--bottom-tab-h) + env(safe-area-inset-bottom) + 1rem);
+}
+
+.has-sub-page .page-viewport {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.top-bar {
+  position: relative;
+  flex: 0 0 var(--top-bar-h);
+  display: grid;
+  grid-template-columns: var(--top-bar-h) minmax(0, 1fr) var(--top-bar-h);
+  align-items: center;
+  height: var(--top-bar-h);
+  border-bottom: 1px solid rgba(223, 229, 221, 0.95);
+  background: #fff;
+}
+
+.top-bar h1 {
+  margin: 0;
+  overflow: hidden;
+  color: #223026;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-back-button {
+  width: var(--top-bar-h);
+  height: var(--top-bar-h);
+  display: grid;
+  place-items: center;
+  color: var(--green-deep);
+  background: transparent;
+  font-size: 1.9rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tab-page {
+  display: flex;
+  min-height: 100%;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 0.15rem;
+}
+
+.progress-tab-page {
+  gap: 1.25rem;
 }
 
 .tab-content {
@@ -328,7 +399,7 @@ button:focus-visible {
 }
 
 .bottom-tab-bar {
-  --nav-h: 4.3rem;
+  --nav-h: var(--bottom-tab-h);
   position: fixed;
   right: max(0px, calc((100vw - 30rem) / 2));
   bottom: 0;
@@ -336,22 +407,24 @@ button:focus-visible {
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.2rem;
+  gap: 0;
   width: min(100vw, 30rem);
+  min-height: calc(var(--bottom-tab-h) + env(safe-area-inset-bottom));
   margin: 0 auto;
-  padding: 0.45rem 0.55rem calc(0.45rem + env(safe-area-inset-bottom));
+  padding: 0 0 calc(env(safe-area-inset-bottom));
   border-top: 1px solid rgba(234, 223, 202, 0.9);
-  background: rgba(255, 254, 251, 0.96);
-  box-shadow: 0 -0.5rem 1.5rem rgba(83, 67, 39, 0.1);
+  background: #fff;
+  box-shadow: none;
 }
 
 .tab-button {
   display: grid;
   place-items: center;
-  gap: 0.18rem;
+  gap: 0.12rem;
   min-width: 0;
-  min-height: 3.4rem;
-  border-radius: 0.75rem;
+  height: var(--bottom-tab-h);
+  min-height: var(--bottom-tab-h);
+  border-radius: 0;
   color: var(--muted);
   background: transparent;
 }
@@ -359,10 +432,10 @@ button:focus-visible {
 .tab-button span {
   display: grid;
   place-items: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  border: 1px solid rgba(129, 120, 103, 0.25);
-  border-radius: 999rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 50%;
   font-size: 0.72rem;
   font-weight: 900;
 }
@@ -376,13 +449,198 @@ button:focus-visible {
 
 .tab-button.active {
   color: var(--green-deep);
-  background: #edf7ed;
+  background: #f1f8f1;
 }
 
 .tab-button.active span {
   border-color: rgba(91, 166, 111, 0.5);
   color: #fff;
   background: var(--green);
+}
+
+.app-card {
+  display: grid;
+  gap: 0.85rem;
+  padding: 16px;
+  border: 1px solid rgba(223, 229, 221, 0.85);
+  border-radius: var(--app-card-radius);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(43, 54, 45, 0.08);
+}
+
+.today-dashboard {
+  display: grid;
+  gap: 1rem;
+  min-height: 100%;
+}
+
+.today-header-card {
+  gap: 0.25rem;
+}
+
+.today-header-card h1,
+.card-title-row h2 {
+  margin: 0;
+  color: #223026;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.today-header-card h1 {
+  font-size: 1.45rem;
+}
+
+.today-header-card p {
+  margin: 0;
+  color: #68736b;
+  font-weight: 800;
+}
+
+.card-kicker {
+  color: var(--green-deep);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.card-title-row h2 {
+  margin-top: 0.15rem;
+  font-size: 1.05rem;
+}
+
+.calorie-card {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calorie-card div {
+  min-width: 0;
+  padding: 0.75rem 0.55rem;
+  border-radius: 0.75rem;
+  background: #f6f8f4;
+  text-align: center;
+}
+
+.calorie-card span,
+.calorie-card strong {
+  display: block;
+}
+
+.calorie-card span {
+  color: #68736b;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.calorie-card strong {
+  margin-top: 0.2rem;
+  color: #223026;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.calorie-card strong.positive {
+  color: #b65d1c;
+}
+
+.calorie-card strong.balanced {
+  color: var(--green-deep);
+}
+
+.today-meal-list,
+.todo-list,
+.quick-action-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.today-meal-row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "time name kcal"
+    "time meta kcal";
+  align-items: center;
+  gap: 0.15rem 0.65rem;
+  min-height: 3.6rem;
+  padding: 0.75rem;
+  border: 1px solid #edf0ec;
+  border-radius: 0.75rem;
+  background: #fbfcfa;
+  text-align: left;
+}
+
+.today-meal-row span {
+  grid-area: time;
+  color: #68736b;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.today-meal-row strong {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  color: #223026;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-meal-row small {
+  grid-area: meta;
+  min-width: 0;
+  overflow: hidden;
+  color: #68736b;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-meal-row em {
+  grid-area: kcal;
+  color: var(--orange);
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.todo-row {
+  min-height: 2.8rem;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(91, 166, 111, 0.28);
+  border-radius: 0.75rem;
+  background: #f6fbf5;
+  color: var(--green-deep);
+  font-weight: 900;
+  text-align: left;
+}
+
+.todo-reminder {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #fff7e8;
+  color: #8a5a00;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.quick-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-action-grid .primary-action,
+.quick-action-grid .ghost-action {
+  min-height: 2.8rem;
+  padding: 0 0.65rem;
+  font-size: 0.86rem;
 }
 
 .empty-state-panel {

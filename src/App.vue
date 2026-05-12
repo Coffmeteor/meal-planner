@@ -2,14 +2,25 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CheckinProgress from './components/CheckinProgress.vue'
 import DayFoodEditor from './components/DayFoodEditor.vue'
+import FoodsPage from './components/FoodsPage.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
 import InputForm from './components/InputForm.vue'
 import MealEditor from './components/MealEditor.vue'
-import PlanCalendar from './components/PlanCalendar.vue'
-import ProfileView from './components/ProfileView.vue'
+import PlanPage from './components/PlanPage.vue'
+import ProfilePage from './components/ProfilePage.vue'
+import ProgressPage from './components/ProgressPage.vue'
 import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
+import TodayDashboard from './components/TodayDashboard.vue'
 import WeightProgress from './components/WeightProgress.vue'
+import {
+  clearPageStack,
+  currentPage,
+  currentPageParams,
+  hasSubPage,
+  popPage,
+  pushPage,
+} from './stores/navigationStore.js'
 import {
   clearAllData,
   exportAllData,
@@ -52,7 +63,7 @@ const LS_PREFIX = 'meal-planner:v1:'
 const defaultFoodPreferences = emptyPreferences()
 
 const view = ref(null) // null = loading; wizard: 'input' | 'recommend' | 'confirm' | 'foods'; shell: 'plan'
-const activeTab = ref('plan')
+const activeTab = ref('today')
 const params = ref(null)
 const schedule = ref(null)
 const plan = ref([])
@@ -70,10 +81,10 @@ const editingMeal = ref(null)
 const editingDayFood = ref(null)
 
 const tabs = [
+  { value: 'today', label: '今日', icon: '今' },
   { value: 'plan', label: '餐单', icon: '餐' },
   { value: 'foods', label: '食材', icon: '材' },
   { value: 'progress', label: '进度', icon: '趋' },
-  { value: 'checkin', label: '打卡', icon: '记' },
   { value: 'profile', label: '我的', icon: '我' },
 ]
 
@@ -95,12 +106,41 @@ const headerPill = computed(() => {
   return progress.value ? `${progress.value}/5` : ''
 })
 const todayChecked = computed(() => checkins.value.some((item) => item.date === todayYmd()))
+const tabComponents = {
+  today: TodayDashboard,
+  plan: PlanPage,
+  foods: FoodsPage,
+  progress: ProgressPage,
+  profile: ProfilePage,
+}
+const subPageComponents = {
+  planDay: PlanPage,
+  mealEditor: MealEditor,
+  dayFoodEditor: DayFoodEditor,
+  weightEntry: WeightProgress,
+  checkinForm: CheckinProgress,
+}
+const subPageTitles = {
+  planDay: '今日餐单',
+  mealEditor: '编辑餐次',
+  dayFoodEditor: '编辑当天食材',
+  weightEntry: '记录体重',
+  checkinForm: '今日打卡',
+}
+const currentPageName = computed(() => currentPage.value?.name || null)
+const topBarTitle = computed(() => subPageTitles[currentPageName.value] || '详情')
+const currentPageComponent = computed(() => {
+  if (hasSubPage.value) return subPageComponents[currentPageName.value] || PlanPage
+  return tabComponents[activeTab.value] || TodayDashboard
+})
+const currentPageProps = computed(() => {
+  if (hasSubPage.value) return subPageProps(currentPageName.value)
+  return tabPageProps(activeTab.value)
+})
 const pageKey = computed(() => {
   if (view.value !== 'plan') return `wizard:${view.value || 'loading'}`
-  if (activeTab.value !== 'plan') return `tab:${activeTab.value}`
-  if (editingDayFood.value !== null) return 'plan:day-food-editor'
-  if (editingMeal.value) return 'plan:meal-editor'
-  return 'plan:calendar'
+  if (hasSubPage.value) return `sub:${currentPageName.value}:${JSON.stringify(currentPageParams.value)}`
+  return `tab:${activeTab.value}`
 })
 
 watch(activeTab, (tab) => {
@@ -113,7 +153,7 @@ watch(activeTab, (tab) => {
 })
 
 watch(pageKey, () => {
-  queueScrollToPageTop()
+  scrollToPageTop()
 })
 
 const editorMeal = computed(() => {
@@ -148,6 +188,91 @@ const dayFoodEditorFoods = computed(() => {
   if (!dayFoodEditorDay.value) return editorAvailableFoods.value
   return mergeFoodsById(editorAvailableFoods.value, foodsUsedByDay(dayFoodEditorDay.value))
 })
+const currentDayIndex = computed(() => resolveTodayIndex())
+
+function sharedPlanProps() {
+  return {
+    plan: plan.value,
+    startDate: planMeta.value?.startDate,
+    planMeta: planMeta.value,
+    eatingWindow: planMeta.value?.eatingWindow || schedule.value?.eatingWindow || params.value?.eatingWindow,
+    todayChecked: todayChecked.value,
+  }
+}
+
+function tabPageProps(tab) {
+  if (tab === 'today') {
+    return {
+      plan: plan.value,
+      planMeta: planMeta.value,
+      profile: params.value,
+      weightLogs: weightLogs.value,
+      checkins: checkins.value,
+    }
+  }
+  if (tab === 'plan') return sharedPlanProps()
+  if (tab === 'foods') {
+    return {
+      foodPreferences: foodPrefs.value || defaultFoodPreferences,
+    }
+  }
+  if (tab === 'progress') {
+    return {
+      weightLogs: weightLogs.value,
+      profile: params.value,
+      checkins: checkins.value,
+      planDays: Number(params.value?.days || planMeta.value?.days || plan.value.length || 7),
+      startDate: planMeta.value?.startDate || null,
+    }
+  }
+  if (tab === 'profile') {
+    return {
+      profile: params.value,
+      planMeta: planMeta.value,
+    }
+  }
+  return {}
+}
+
+function subPageProps(name) {
+  if (name === 'mealEditor') {
+    return editorMeal.value
+      ? {
+          meal: editorMeal.value,
+          dayIndex: editingMeal.value.dayIndex,
+          mealIndex: editingMeal.value.mealIndex,
+          mealTargetCalories: editorMealTargetCalories.value,
+          availableFoods: editorAvailableFoods.value,
+        }
+      : {}
+  }
+  if (name === 'dayFoodEditor') {
+    return dayFoodEditorDay.value
+      ? {
+          day: dayFoodEditorDay.value,
+          dayIndex: editingDayFood.value,
+          availableFoods: dayFoodEditorFoods.value,
+        }
+      : {}
+  }
+  if (name === 'weightEntry') {
+    return {
+      weightLogs: weightLogs.value,
+      profile: params.value,
+      checkins: checkins.value,
+      planDays: Number(params.value?.days || planMeta.value?.days || plan.value.length || 7),
+      startDate: planMeta.value?.startDate || null,
+      showClose: false,
+    }
+  }
+  if (name === 'checkinForm') {
+    return {
+      checkins: checkins.value,
+      showClose: false,
+    }
+  }
+  return sharedPlanProps()
+}
 
 // ── Startup ──────────────────────────────────────────────────────────
 
@@ -220,6 +345,7 @@ async function loadAppState() {
     if (tabs.some((tab) => tab.value === savedTab)) activeTab.value = savedTab
     editingMeal.value = null
     editingDayFood.value = null
+    clearPageStack()
     view.value = plan.value.length ? 'plan' : 'input'
   } catch (error) {
     console.warn('Failed to initialize app state', error)
@@ -513,10 +639,12 @@ function handleRefreshRecipe() {
 function handleEditMeal({ dayIndex, mealIndex }) {
   if (!plan.value[dayIndex]?.meals?.[mealIndex]) return
   editingMeal.value = { dayIndex, mealIndex }
+  pushPage('mealEditor', { dayIndex, mealIndex })
 }
 
 function handleCancelMealEdit() {
   editingMeal.value = null
+  if (currentPageName.value === 'mealEditor') popPage()
 }
 
 function handleSaveMeal({ dayIndex, mealIndex, foods, meal: savedMeal }) {
@@ -550,6 +678,7 @@ function handleSaveMeal({ dayIndex, mealIndex, foods, meal: savedMeal }) {
   })
 
   editingMeal.value = null
+  if (currentPageName.value === 'mealEditor') popPage()
   savePlan()
   showToast('已保存餐次')
 }
@@ -577,10 +706,12 @@ function handleEditDayFood(dayIndex) {
   if (!plan.value[dayIndex]) return
   editingMeal.value = null
   editingDayFood.value = dayIndex
+  pushPage('dayFoodEditor', { dayIndex })
 }
 
 function handleCancelDayFoodEdit() {
   editingDayFood.value = null
+  if (currentPageName.value === 'dayFoodEditor') popPage()
 }
 
 function handleSaveDayFood({ dayIndex, selectedFoodIds }) {
@@ -619,6 +750,7 @@ function handleSaveDayFood({ dayIndex, selectedFoodIds }) {
       : planDay,
   )
   editingDayFood.value = null
+  if (currentPageName.value === 'dayFoodEditor') popPage()
   savePlan()
   showToast('已更新当天食材')
 }
@@ -690,7 +822,8 @@ async function handleClearData() {
   try {
     await clearAllData()
   } catch (e) { /* */ }
-  activeTab.value = 'plan'
+  activeTab.value = 'today'
+  clearPageStack()
   for (const k of [
     'profile',
     'schedule',
@@ -723,7 +856,8 @@ async function handleImportData(importData) {
     await clearAllData()
     lsRemove('activeTab')
     await importAllData(importData)
-    activeTab.value = 'plan'
+    activeTab.value = 'today'
+    clearPageStack()
     await loadAppState()
     showToast('导入完成')
   } catch (error) {
@@ -770,12 +904,28 @@ function handleWeightLogsSave(updatedLogs) {
 }
 
 function handleViewCheckin() {
-  setActiveTab('checkin')
+  pushPage('checkinForm')
 }
 
 function handleCheckinSave(updated) {
   checkins.value = updated
   showToast('已保存打卡')
+}
+
+function handlePageSave(payload, options = {}) {
+  if (currentPageName.value === 'dayFoodEditor') {
+    handleSaveDayFood(payload)
+    return
+  }
+  if (currentPageName.value === 'weightEntry') {
+    handleWeightLogsSave(payload)
+    return
+  }
+  if (currentPageName.value === 'checkinForm') {
+    handleCheckinSave(payload)
+    return
+  }
+  handleFoodsSave(payload, options)
 }
 
 async function handleFoodsSave(updatedPrefs, options = {}) {
@@ -794,7 +944,8 @@ async function handleFoodsSave(updatedPrefs, options = {}) {
     setPlanMeta(plan.value, recFields)
     savePlan()
     foodSetupMode.value = false
-    activeTab.value = 'plan'
+    activeTab.value = 'today'
+    clearPageStack()
     view.value = 'plan'
     return
   }
@@ -805,7 +956,7 @@ async function handleFoodsSave(updatedPrefs, options = {}) {
     showToast('已保存食材')
   }
   view.value = plan.value.length ? 'plan' : 'input'
-  activeTab.value = plan.value.length ? 'foods' : 'plan'
+  activeTab.value = plan.value.length ? 'foods' : 'today'
 }
 
 function handleFoodsClose() {
@@ -818,56 +969,65 @@ function handleFoodsClose() {
 }
 
 function setActiveTab(tab) {
+  if (!tabs.some((item) => item.value === tab)) return
   activeTab.value = tab
+  clearPageStack()
+}
+
+function handleBack() {
+  if (currentPageName.value === 'mealEditor') editingMeal.value = null
+  if (currentPageName.value === 'dayFoodEditor') editingDayFood.value = null
+  popPage()
+}
+
+function handleTodayOptimize(dayIndex = currentDayIndex.value) {
+  handleRefreshDay(dayIndex)
+  pushPage('planDay', { dayIndex })
+}
+
+function resolveTodayIndex() {
+  if (!plan.value.length) return 0
+
+  const today = todayYmd()
+  const exactIndex = plan.value.findIndex((day) => day.date === today)
+  if (exactIndex >= 0) return exactIndex
+
+  const startDate = planMeta.value?.startDate || plan.value[0]?.date
+  if (!startDate) return 0
+
+  const [year, month, day] = String(startDate).split('-').map(Number)
+  if (!year || !month || !day) return 0
+
+  const start = new Date(year, month - 1, day)
+  start.setHours(0, 0, 0, 0)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24))
+  return Math.min(plan.value.length - 1, Math.max(0, diffDays))
 }
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'has-tabs': isAppShell }">
+  <main class="app-shell" :class="{ 'has-tabs': isAppShell, 'has-sub-page': hasSubPage }">
     <div v-if="toastMsg" class="toast-overlay">{{ toastMsg }}</div>
-    <header v-if="view" class="app-header">
-      <div>
-        <span class="eyebrow">轻盈餐盘</span>
-        <h1>减脂餐计划</h1>
-      </div>
-      <div v-if="headerPill" class="progress-pill">{{ headerPill }}</div>
-    </header>
 
     <div v-if="!view" class="loading-shell">
       <div class="loading-dot"></div>
     </div>
 
     <template v-else-if="isAppShell">
-      <section class="app-content tab-content">
+      <header v-if="hasSubPage" class="top-bar">
+        <button type="button" class="top-back-button" aria-label="返回" @click="handleBack">‹</button>
+        <h1>{{ topBarTitle }}</h1>
+        <span aria-hidden="true"></span>
+      </header>
+
+      <section class="app-content page-viewport">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
-        <DayFoodEditor
-          v-if="activeTab === 'plan' && editingDayFood !== null && dayFoodEditorDay"
-          key="day-food-editor"
-          :day="dayFoodEditorDay"
-          :day-index="editingDayFood"
-          :available-foods="dayFoodEditorFoods"
-          @save="handleSaveDayFood"
-          @cancel="handleCancelDayFoodEdit"
-        />
-        <MealEditor
-          v-else-if="activeTab === 'plan' && editingMeal && editorMeal"
-          key="meal-editor"
-          :meal="editorMeal"
-          :day-index="editingMeal.dayIndex"
-          :meal-index="editingMeal.mealIndex"
-          :meal-target-calories="editorMealTargetCalories"
-          :available-foods="editorAvailableFoods"
-          @save-meal="handleSaveMeal"
-          @cancel-edit="handleCancelMealEdit"
-        />
-        <PlanCalendar
-          v-else-if="activeTab === 'plan'"
-          key="plan-tab"
-          :plan="plan"
-          :start-date="planMeta?.startDate"
-          :plan-meta="planMeta"
-          :eating-window="planMeta?.eatingWindow || schedule?.eatingWindow || params?.eatingWindow"
-          :today-checked="todayChecked"
+        <component
+          :is="currentPageComponent"
+          :key="pageKey"
+          v-bind="currentPageProps"
           @refresh-recipe="handleRefreshRecipe"
           @refresh-day="handleRefreshDay"
           @edit-day-food="handleEditDayFood"
@@ -876,45 +1036,20 @@ function setActiveTab(tab) {
           @lock-meal="handleLockMeal"
           @unlock-meal="handleUnlockMeal"
           @replace-meal="handleReplaceMeal"
-        />
-        <FoodPreferences
-          v-else-if="activeTab === 'foods'"
-          key="foods-tab"
-          :food-preferences="foodPrefs || defaultFoodPreferences"
-          mode="manage"
-          :show-close="false"
-          @save="handleFoodsSave"
-        />
-        <WeightProgress
-          v-else-if="activeTab === 'progress'"
-          key="progress-tab"
-          :weight-logs="weightLogs"
-          :profile="params"
-          :checkins="checkins"
-          :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
-          :start-date="planMeta?.startDate || null"
-          :show-close="false"
-          @save="handleWeightLogsSave"
-        />
-        <CheckinProgress
-          v-else-if="activeTab === 'checkin'"
-          key="checkin-tab"
-          :checkins="checkins"
-          :show-close="false"
-          @save="handleCheckinSave"
-        />
-        <ProfileView
-          v-else-if="activeTab === 'profile'"
-          key="profile-tab"
-          :profile="params"
-          :plan-meta="planMeta"
+          @save="handlePageSave"
+          @save-meal="handleSaveMeal"
+          @cancel-edit="handleCancelMealEdit"
+          @cancel="handleCancelDayFoodEdit"
+          @save-weight-logs="handleWeightLogsSave"
+          @save-checkins="handleCheckinSave"
           @edit-profile="handleEditProfile"
           @clear-data="handleClearData"
           @import-data="handleImportData"
+          @optimize-day="handleTodayOptimize"
         />
       </section>
 
-      <nav class="bottom-tab-bar" aria-label="主导航">
+      <nav v-if="!hasSubPage" class="bottom-tab-bar" aria-label="主导航">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -929,7 +1064,16 @@ function setActiveTab(tab) {
       </nav>
     </template>
 
-    <div v-else class="app-content wizard-content">
+    <template v-else>
+      <header class="app-header">
+        <div>
+          <span class="eyebrow">轻盈餐盘</span>
+          <h1>减脂餐计划</h1>
+        </div>
+        <div v-if="headerPill" class="progress-pill">{{ headerPill }}</div>
+      </header>
+
+      <div class="app-content wizard-content">
       <Transition name="slide-fade" mode="out-in">
         <InputForm
           v-if="view === 'input'"
@@ -971,7 +1115,8 @@ function setActiveTab(tab) {
           <p>完成资料、推荐、餐次和食材设置后，将生成第 5 步餐单。</p>
         </section>
       </Transition>
-    </div>
+      </div>
+    </template>
   </main>
 </template>
 
