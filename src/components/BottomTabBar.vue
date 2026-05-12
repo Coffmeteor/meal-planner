@@ -21,6 +21,7 @@ const emit = defineEmits(['change'])
       type="button"
       class="tab-button"
       :class="{ active: activeTab === tab.value, center: tab.value === 'today' }"
+      :aria-current="activeTab === tab.value ? 'page' : undefined"
       @click="emit('change', tab.value)"
     >
       <strong>{{ tab.label }}</strong>

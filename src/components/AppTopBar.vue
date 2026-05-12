@@ -14,7 +14,7 @@ const emit = defineEmits(['back'])
     <button type="button" class="top-back-button" aria-label="返回" @click="emit('back')">
       ‹
     </button>
-    <h1>{{ title }}</h1>
+    <h1 class="top-bar-title">{{ title }}</h1>
     <div class="top-bar-spacer" aria-hidden="true"></div>
   </header>
 </template>

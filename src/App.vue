@@ -982,7 +982,7 @@ function subPageProps(page) {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 50%;
-  background: var(--green, #5ba66f);
+  background: var(--color-primary);
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -993,9 +993,9 @@ function subPageProps(page) {
 
 .save-error-banner {
   padding: 0.75rem 1rem;
-  border-radius: 0.85rem;
-  background: #fff0d8;
-  color: #c0392b;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-danger);
   font-weight: 700;
   font-size: 0.85rem;
   text-align: center;
@@ -1003,24 +1003,26 @@ function subPageProps(page) {
 
 .toast-overlay {
   position: fixed;
-  bottom: 3rem;
+  bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));
   left: 50%;
   z-index: 999;
   max-width: calc(100vw - 2rem);
-  padding: 0.75rem 1.5rem;
-  border-radius: 2rem;
-  background: #2d3436;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-pill);
+  background: rgba(28, 28, 30, 0.92);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-glass);
   font-size: 0.9rem;
   font-weight: 600;
   white-space: nowrap;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   transform: translateX(-50%);
   animation: toast-in 0.25s ease;
 }
 
 .has-tabs .toast-overlay {
-  bottom: calc(5.6rem + env(safe-area-inset-bottom));
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-xl));
 }
 
 @keyframes toast-in {
