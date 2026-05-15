@@ -6,4 +6,5 @@ export {
   getTargetCurve,
   calculateMovingAverage,
   buildWeightChartData,
+  buildChartDataForMetric,
 } from '../domain/body-records/index.js'
