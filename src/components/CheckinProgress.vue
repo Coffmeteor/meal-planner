@@ -1,7 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { deleteCheckin, saveCheckin } from '../storage/index.js'
-import { analyzeRecentCheckins, generateCheckinAdvice } from '../utils/checkins.js'
+import { analyzeRecentCheckins, generateCheckinAdvice } from '../domain/checkins/index.js'
 
 const props = defineProps({
   checkins: {
@@ -14,7 +13,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['save', 'close'])
+const emit = defineEmits(['save', 'close', 'deleteCheckin'])
 
 const form = reactive({
   date: todayYmd(),
@@ -98,7 +97,7 @@ async function handleSave() {
   saving.value = true
   error.value = ''
   try {
-    const result = await saveCheckin({
+    const payload = {
       date: form.date,
       mealCompleted: form.mealCompleted,
       ateOut: form.ateOut,
@@ -107,8 +106,8 @@ async function handleSave() {
       hungerLevel: form.hungerLevel,
       adherenceLevel: form.adherenceLevel,
       note: form.note.trim(),
-    })
-    emit('save', result)
+    }
+    emit('save', payload)
   } catch (e) {
     console.warn('Failed to save checkin', e)
     error.value = '保存失败，请稍后重试'
@@ -124,8 +123,7 @@ async function handleDelete(id) {
   saving.value = true
   error.value = ''
   try {
-    const result = await deleteCheckin(id)
-    emit('save', result)
+    emit('deleteCheckin', id)
   } catch (e) {
     console.warn('Failed to delete checkin', e)
     error.value = '删除失败，请稍后重试'
@@ -142,13 +140,15 @@ async function handleDelete(id) {
         <p>执行打卡</p>
         <h2>今日打卡</h2>
       </div>
-      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
+      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">
+        返回
+      </button>
     </div>
 
     <form class="checkin-panel checkin-form" @submit.prevent="handleSave">
       <label>
         <span>日期</span>
-        <input v-model="form.date" type="date">
+        <input v-model="form.date" type="date" />
       </label>
 
       <div class="field-block">
@@ -236,9 +236,14 @@ async function handleDelete(id) {
       </label>
 
       <p v-if="error" class="form-error">{{ error }}</p>
-      <button type="submit" class="primary-action full-width" :disabled="saving">
-        {{ saving ? '保存中...' : '保存打卡' }}
-      </button>
+      <div class="form-action-bar" :class="{ single: !showClose }">
+        <button v-if="showClose" type="button" class="ghost-action" @click="emit('close')">
+          放弃
+        </button>
+        <button type="submit" class="primary-action full-width" :disabled="saving">
+          {{ saving ? '保存中...' : '保存打卡' }}
+        </button>
+      </div>
     </form>
 
     <div class="checkin-panel">
@@ -289,10 +294,8 @@ async function handleDelete(id) {
         <div>
           <strong>{{ log.date }} · {{ completionLabels[log.mealCompleted] || '未填' }}</strong>
           <span>
-            外食 {{ log.ateOut ? '是' : '否' }} ·
-            运动 {{ log.exerciseDone ? '是' : '否' }} ·
-            饥饿 {{ scoreText(log.hungerLevel) }} ·
-            执行 {{ scoreText(log.adherenceLevel) }}
+            外食 {{ log.ateOut ? '是' : '否' }} · 运动 {{ log.exerciseDone ? '是' : '否' }} · 饥饿
+            {{ scoreText(log.hungerLevel) }} · 执行 {{ scoreText(log.adherenceLevel) }}
           </span>
           <p v-if="log.note">{{ log.note }}</p>
         </div>
@@ -316,7 +319,7 @@ async function handleDelete(id) {
   overflow-x: hidden;
   flex-direction: column;
   gap: 1rem;
-  padding: 0 0.5rem;
+  padding: 0 0.5rem calc(5rem + env(safe-area-inset-bottom));
 }
 
 .checkin-title,
@@ -331,18 +334,19 @@ async function handleDelete(id) {
   flex: 0 0 auto;
   min-height: 2.25rem;
   padding: 0 0.8rem;
-  border: 1px solid var(--line, #dfe5dd);
-  border-radius: 0.8rem;
-  color: var(--green-deep, #35754b);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-primary-deep);
+  background: var(--color-card);
   font-weight: 900;
 }
 
 .checkin-panel {
   padding: 1rem;
-  border-radius: 0.8rem;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(43, 54, 45, 0.08);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .checkin-form {
@@ -363,7 +367,7 @@ async function handleDelete(id) {
 .panel-head span,
 .checkin-metrics span,
 .advice-panel span {
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.78rem;
 }
 
@@ -371,10 +375,10 @@ input,
 textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #dfe5dd;
-  border-radius: 0.65rem;
-  background: #fbfcfa;
-  color: #223026;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  color: var(--color-text);
   font: inherit;
   padding: 0.7rem 0.75rem;
 }
@@ -407,19 +411,19 @@ textarea {
 .toggle-button,
 .score-buttons button {
   min-height: 2.65rem;
-  border: 1px solid #dfe5dd;
-  border-radius: 0.65rem;
-  background: #fbfcfa;
-  color: #4f5f53;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  color: var(--color-muted);
   font-weight: 800;
 }
 
 .completion-grid button.active,
 .toggle-button.active,
 .score-buttons button.active {
-  border-color: var(--green, #5ba66f);
-  background: #edf7ef;
-  color: #2f7c48;
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
 }
 
 .checkin-metrics {
@@ -430,8 +434,8 @@ textarea {
 .checkin-metrics div {
   min-width: 0;
   padding: 0.75rem 0.45rem;
-  border-radius: 0.75rem;
-  background: #f6f8f4;
+  border-radius: var(--radius-button);
+  background: #f8fafc;
   text-align: center;
 }
 
@@ -442,26 +446,26 @@ textarea {
 
 .checkin-metrics strong {
   margin-top: 0.2rem;
-  color: #223026;
+  color: var(--color-text);
   font-size: 0.95rem;
 }
 
 .panel-head h3 {
   margin: 0;
-  color: #223026;
+  color: var(--color-text);
   font-size: 1rem;
 }
 
 .advice-panel p,
 .empty-state {
   margin: 0.35rem 0 0;
-  color: #2f3a32;
+  color: var(--color-text);
   font-size: 0.9rem;
   line-height: 1.55;
 }
 
 .empty-state {
-  color: #7a847d;
+  color: var(--color-muted);
 }
 
 .checkin-item {
@@ -470,7 +474,7 @@ textarea {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.8rem 0;
-  border-top: 1px solid #edf0ec;
+  border-top: 1px solid var(--color-border);
 }
 
 .checkin-item div {
@@ -481,14 +485,14 @@ textarea {
 }
 
 .checkin-item strong {
-  color: #223026;
+  color: var(--color-text);
   font-size: 0.92rem;
 }
 
 .checkin-item span,
 .checkin-item p {
   margin: 0;
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.8rem;
   line-height: 1.45;
   word-break: break-word;
@@ -498,16 +502,36 @@ textarea {
   flex: 0 0 auto;
   border: 0;
   background: transparent;
-  color: #c0392b;
+  color: var(--color-danger);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .form-error {
   margin: 0;
-  color: #c0392b;
+  color: var(--color-danger);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.form-action-bar {
+  position: fixed;
+  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  z-index: 21;
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border: 0.5px solid var(--color-separator);
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -0.5px 4px rgba(0, 0, 0, 0.06);
+}
+
+.form-action-bar.single {
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 520px) {
@@ -527,7 +551,7 @@ textarea {
 
 @media (max-width: 400px) {
   .checkin-progress {
-    padding: 0 0.25rem;
+    padding: 0 0.25rem calc(5rem + env(safe-area-inset-bottom));
   }
 
   .toggle-grid,

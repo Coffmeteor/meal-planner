@@ -1,8 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { formatCalories, formatDate, formatMacros, formatTime } from '../utils/helpers.js'
-import { mealFoods, normalizeMealDisplay } from '../utils/mealDisplay.js'
-import { normalizeDietMethod } from '../utils/scheduleUtils.js'
+import { mealFoods, normalizeMealDisplay } from '../domain/meal-plan/mealDisplay.js'
+import { normalizeDietMethod } from '../domain/meal-plan/scheduleUtils.js'
+import {
+  CALORIE_DEVIATION_MINOR,
+  CALORIE_DEVIATION_MODERATE,
+} from '../domain/meal-plan/constants.js'
 
 const props = defineProps({
   plan: {
@@ -45,18 +49,17 @@ const displayedMeals = computed(() =>
   (selectedDay.value?.meals || []).map((meal) => normalizeMealDisplay(meal)),
 )
 const dayTotals = computed(() => selectedDay.value?.totals || {})
-const dayTargetCalories = computed(() =>
-  Number(selectedDay.value?.targets?.calories)
-  || Number(summaryMeta.value?.targetCalories)
-  || 0,
+const dayTargetCalories = computed(
+  () =>
+    Number(selectedDay.value?.targets?.calories) || Number(summaryMeta.value?.targetCalories) || 0,
 )
 const dayDeviation = computed(() =>
   Math.round(Number(dayTotals.value.calories || 0) - Number(dayTargetCalories.value || 0)),
 )
 const dayDeviationText = computed(() => deviationLabel(dayDeviation.value))
 const dayDeviationClass = computed(() => ({
-  close: Math.abs(dayDeviation.value) <= 50,
-  far: Math.abs(dayDeviation.value) >= 100,
+  close: Math.abs(dayDeviation.value) <= CALORIE_DEVIATION_MINOR,
+  far: Math.abs(dayDeviation.value) >= CALORIE_DEVIATION_MODERATE,
 }))
 const dietMethodLabels = {
   threeMeals: '正常三餐',
@@ -76,12 +79,12 @@ const eatingWindowLabel = computed(() => {
 const summaryMeta = computed(() => {
   if (!props.planMeta) return null
   const hasRecommendationMeta = Boolean(
-    props.planMeta.dietMethod
-      || props.planMeta.dietMethodLabel
-      || props.planMeta.targetCalories
-      || props.planMeta.deficitPercent
-      || props.planMeta.macros
-      || props.planMeta.eatingWindow,
+    props.planMeta.dietMethod ||
+    props.planMeta.dietMethodLabel ||
+    props.planMeta.targetCalories ||
+    props.planMeta.deficitPercent ||
+    props.planMeta.macros ||
+    props.planMeta.eatingWindow,
   )
   if (!hasRecommendationMeta) return null
 
@@ -114,7 +117,7 @@ const macroStyle = computed(() => {
   const carbsEnd = proteinEnd + (carbsCalories / total) * 100
 
   return {
-    background: `conic-gradient(#5ba66f 0 ${proteinEnd}%, #f0a24a ${proteinEnd}% ${carbsEnd}%, #e7c65a ${carbsEnd}% 100%)`,
+    background: `conic-gradient(var(--color-primary) 0 ${proteinEnd}%, var(--color-warning) ${proteinEnd}% ${carbsEnd}%, #eab308 ${carbsEnd}% 100%)`,
   }
 })
 
@@ -170,8 +173,8 @@ function toggleLock(mealIndex) {
 
 function deviationLabel(value) {
   const abs = Math.abs(value)
-  if (abs <= 50) return '接近目标'
-  if (abs >= 100) return '偏离较多'
+  if (abs <= CALORIE_DEVIATION_MINOR) return '接近目标'
+  if (abs >= CALORIE_DEVIATION_MODERATE) return '偏离较多'
   return '稍有偏差'
 }
 
@@ -193,10 +196,7 @@ function handleReplace(mealIndex) {
 
 function handleRefreshDay() {
   const hasEditedMeals = selectedDay.value?.meals?.some((meal) => meal?.edited === true)
-  if (
-    hasEditedMeals
-    && !confirm('刷新当天会替换未锁定餐，已编辑餐和已锁定餐保留。')
-  ) {
+  if (hasEditedMeals && !confirm('刷新当天会替换未锁定餐，已编辑餐和已锁定餐保留。')) {
     return
   }
 
@@ -225,27 +225,26 @@ function handleEditDayFood() {
       </div>
       <div v-if="summaryMeta.macros" class="summary-row macro-summary">
         <span>
-          蛋白 {{ summaryMeta.macros.protein }}g ·
-          脂肪 {{ summaryMeta.macros.fat }}g ·
-          碳水 {{ summaryMeta.macros.carbs }}g
+          蛋白 {{ summaryMeta.macros.protein }}g · 脂肪 {{ summaryMeta.macros.fat }}g · 碳水
+          {{ summaryMeta.macros.carbs }}g
         </span>
       </div>
-      <div v-if="summaryMeta.startDate && summaryMeta.totalDays && currentDayIndex" class="summary-row">
+      <div
+        v-if="summaryMeta.startDate && summaryMeta.totalDays && currentDayIndex"
+        class="summary-row"
+      >
         <span>计划日期</span>
-        <strong>{{ summaryMeta.startDate }} · 第{{ currentDayIndex }}/{{ summaryMeta.totalDays }}天</strong>
+        <strong
+          >{{ summaryMeta.startDate }} · 第{{ currentDayIndex }}/{{
+            summaryMeta.totalDays
+          }}天</strong
+        >
       </div>
     </div>
 
     <div class="plan-top-actions">
-      <button type="button" class="primary-action" @click="emit('refreshRecipe')">
-        刷新食谱
-      </button>
-      <button
-        v-if="!todayChecked"
-        type="button"
-        class="ghost-action"
-        @click="emit('viewCheckin')"
-      >
+      <button type="button" class="primary-action" @click="emit('refreshRecipe')">刷新食谱</button>
+      <button v-if="!todayChecked" type="button" class="ghost-action" @click="emit('viewCheckin')">
         今日未打卡，去打卡
       </button>
     </div>
@@ -272,9 +271,7 @@ function handleEditDayFood() {
           <h2>{{ formatDate(selectedDay.date) }} 饮食计划</h2>
         </div>
         <div class="day-title-actions">
-          <button type="button" class="day-refresh-btn" @click="handleEditDayFood">
-            编辑当天
-          </button>
+          <button type="button" class="day-refresh-btn" @click="handleEditDayFood">编辑当天</button>
           <button type="button" class="day-refresh-btn" @click="handleRefreshDay">
             刷新当天餐单
           </button>
@@ -293,15 +290,14 @@ function handleEditDayFood() {
       </div>
       <div class="day-deviation-card">
         <span>
-          今日目标: {{ Math.round(dayTargetCalories) }} kcal |
-          当前: {{ Math.round(dayTotals.calories || 0) }} kcal |
-          {{ dayDeviation > 0 ? '+' : '' }}{{ dayDeviation }} kcal
+          今日目标: {{ Math.round(dayTargetCalories) }} kcal | 当前:
+          {{ Math.round(dayTotals.calories || 0) }} kcal | {{ dayDeviation > 0 ? '+' : ''
+          }}{{ dayDeviation }} kcal
         </span>
         <strong :class="dayDeviationClass">{{ dayDeviationText }}</strong>
         <small>
-          蛋白: {{ Math.round(dayTotals.protein || 0) }}g /
-          碳水: {{ Math.round(dayTotals.carbs || 0) }}g /
-          脂肪: {{ Math.round(dayTotals.fat || 0) }}g
+          蛋白: {{ Math.round(dayTotals.protein || 0) }}g / 碳水:
+          {{ Math.round(dayTotals.carbs || 0) }}g / 脂肪: {{ Math.round(dayTotals.fat || 0) }}g
         </small>
       </div>
 
@@ -312,14 +308,15 @@ function handleEditDayFood() {
           class="meal-card"
           :class="{ 'meal-locked': meal.locked }"
         >
-            <div class="meal-head">
-              <div>
-                <span>{{ formatTime(meal.time) }}
-                  <small class="meal-label">{{ meal.label || meal.name }}</small>
-                </span>
-                <strong v-if="meal.label" class="meal-dish-name">{{ meal.name }}</strong>
-                <small v-if="meal.edited" class="edited-badge">已编辑</small>
-              </div>
+          <div class="meal-head">
+            <div>
+              <span
+                >{{ formatTime(meal.time) }}
+                <small class="meal-label">{{ meal.label || meal.name }}</small>
+              </span>
+              <strong v-if="meal.label" class="meal-dish-name">{{ meal.name }}</strong>
+              <small v-if="meal.edited" class="edited-badge">已编辑</small>
+            </div>
             <em>{{ formatCalories(meal.calories) }}</em>
           </div>
           <ul v-if="mealFoods(meal).length" class="meal-food-list">
@@ -355,39 +352,68 @@ function handleEditDayFood() {
 </template>
 
 <style scoped>
+.plan-view,
+.plan-detail {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
 .plan-top-actions {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: 0.65rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.plan-top-actions > * {
+  min-width: 0;
 }
 
 .plan-summary {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   gap: 0.4rem;
   padding: 0.7rem 0.8rem;
-  border-radius: 0.75rem;
-  background: #f5f6f4;
-  color: #2f3a32;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: var(--color-text);
 }
 
 .summary-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   gap: 0.75rem;
   font-size: 0.85rem;
   line-height: 1.35;
 }
 
 .summary-row span {
-  color: #68736b;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-muted);
 }
 
 .summary-row strong {
-  flex: 0 0 auto;
-  color: #223026;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
   font-weight: 800;
+  text-align: right;
 }
 
 .macro-summary {
@@ -396,33 +422,39 @@ function handleEditDayFood() {
 }
 
 .macro-summary span {
-  color: #7a847d;
+  color: var(--color-muted);
 }
 
 .day-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  min-width: 0;
   gap: 0.75rem;
+}
+
+.day-title-row > div:first-child {
+  min-width: 0;
 }
 
 .day-refresh-btn {
   flex: 0 0 auto;
   min-height: 2.25rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--line, #eadfca);
+  border: 1px solid var(--color-border);
   border-radius: 999rem;
-  background: #fffdf7;
-  color: var(--green-deep, #35754b);
+  background: var(--color-card);
+  color: var(--color-primary-deep);
   font-size: 0.74rem;
   font-weight: 900;
 }
 
 .day-title-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
   gap: 0.45rem;
 }
 
@@ -430,42 +462,42 @@ function handleEditDayFood() {
   display: grid;
   gap: 0.3rem;
   padding: 0.75rem 0.85rem;
-  border-radius: 0.9rem;
-  background: #f6fbf5;
-  color: #405044;
+  border-radius: var(--radius-card);
+  background: #f8fafc;
+  color: var(--color-text);
   line-height: 1.4;
 }
 
 .day-deviation-card span,
 .day-deviation-card small {
-  color: #68736b;
+  color: var(--color-muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .day-deviation-card strong,
 .deviation-badge {
-  color: #8a5a00;
+  color: var(--color-warning);
   font-size: 0.82rem;
 }
 
 .day-deviation-card strong.close {
-  color: var(--green-deep, #35754b);
+  color: var(--color-primary-deep);
 }
 
 .day-deviation-card strong.far {
-  color: #c0392b;
+  color: var(--color-danger);
 }
 
 .meal-steps {
   font-size: 0.78rem;
-  color: #666;
+  color: var(--color-muted);
   margin-top: 0.3rem;
   line-height: 1.4;
 }
 
 .meal-locked {
-  border-left: 3px solid var(--green, #5ba66f);
+  border-left: 3px solid var(--color-primary);
 }
 
 .edited-badge {
@@ -475,8 +507,8 @@ function handleEditDayFood() {
   margin-left: 0.35rem;
   padding: 0 0.45rem;
   border-radius: 999rem;
-  background: #fff0d8;
-  color: #8a5a00;
+  background: #fffbeb;
+  color: var(--color-warning);
   font-size: 0.68rem;
   font-weight: 900;
   vertical-align: middle;
@@ -496,15 +528,15 @@ function handleEditDayFood() {
   gap: 0.75rem;
   padding: 0.42rem 0.55rem;
   border-radius: 0.65rem;
-  background: #fff8ef;
-  color: var(--text, #3f3b32);
+  background: #f8fafc;
+  color: var(--color-text);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .meal-food-list small {
   flex: 0 0 auto;
-  color: var(--muted, #817867);
+  color: var(--color-muted);
 }
 
 .meal-actions {
@@ -517,10 +549,10 @@ function handleEditDayFood() {
 .meal-action-btn {
   min-height: 2.25rem;
   padding: 0 0.85rem;
-  border: 1px solid rgba(91, 166, 111, 0.35);
+  border: 1px solid var(--color-primary-border);
   border-radius: 999rem;
-  background: #f6fbf5;
-  color: var(--green, #5ba66f);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 900;
@@ -529,7 +561,7 @@ function handleEditDayFood() {
 .meal-action-btn.disabled {
   border-color: #e4e4e4;
   background: #f7f7f7;
-  color: #bbb;
+  color: var(--color-muted);
   cursor: not-allowed;
 }
 

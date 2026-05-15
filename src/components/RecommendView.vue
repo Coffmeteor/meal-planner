@@ -4,10 +4,10 @@ import {
   calculateMacrosV2,
   calculateTargetCaloriesV2,
   calculateTdee,
-} from '../utils/calc.js'
+} from '../domain/nutrition/index.js'
 import { formatCalories, formatMacro } from '../utils/helpers.js'
-import { generateScheduleFromProfile } from '../utils/planGenerator.js'
-import { normalizeDietMethod, normalizeEatingWindow } from '../utils/scheduleUtils.js'
+import { generateScheduleFromProfile } from '../domain/meal-plan/index.js'
+import { normalizeDietMethod, normalizeEatingWindow } from '../domain/meal-plan/scheduleUtils.js'
 
 const props = defineProps({
   profile: {
@@ -58,7 +58,9 @@ const methodOptions = [
 ]
 
 const showMethods = ref(false)
-const selectedMethod = ref(normalizeDietMethod(props.profile?.dietMethod || props.dietSuggestion.method))
+const selectedMethod = ref(
+  normalizeDietMethod(props.profile?.dietMethod || props.dietSuggestion.method),
+)
 const selectedDeficit = ref(props.profile?.deficitPercent || props.deficitSuggestion.recommended)
 
 watch(
@@ -92,7 +94,9 @@ const macros = computed(
     props.macroTargets,
 )
 const methodLabel = computed(
-  () => methodOptions.find((item) => item.value === selectedMethod.value)?.label ?? selectedMethod.value,
+  () =>
+    methodOptions.find((item) => item.value === selectedMethod.value)?.label ??
+    selectedMethod.value,
 )
 const methodDescription = computed(
   () => methodOptions.find((item) => item.value === selectedMethod.value)?.description ?? '',

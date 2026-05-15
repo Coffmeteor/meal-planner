@@ -1,10 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import {
-  DEFAULT_FOODS,
-  FOOD_CATEGORY_LABELS,
-  FOOD_CATEGORY_OPTIONS,
-} from '../utils/foodMeta.js'
+import { DEFAULT_FOODS, FOOD_CATEGORY_LABELS, FOOD_CATEGORY_OPTIONS } from '../utils/foodMeta.js'
 
 const props = defineProps({
   foodPreferences: {
@@ -23,10 +19,7 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'close'])
 
-const tabs = [
-  { value: 'all', label: FOOD_CATEGORY_LABELS.all },
-  ...FOOD_CATEGORY_OPTIONS,
-]
+const tabs = [{ value: 'all', label: FOOD_CATEGORY_LABELS.all }, ...FOOD_CATEGORY_OPTIONS]
 const mealFitByCategory = {
   protein: ['breakfast', 'lunch', 'dinner', 'snack'],
   carb: ['breakfast', 'lunch', 'dinner'],
@@ -52,6 +45,7 @@ const localPrefs = reactive({
   selectedFoodIds: [],
   customFoods: [],
   updatedAt: null,
+  preferenceLevels: {},
 })
 const form = reactive({
   name: '',
@@ -70,16 +64,25 @@ watch(
       : []
     localPrefs.customFoods = Array.isArray(prefs.customFoods) ? [...prefs.customFoods] : []
     localPrefs.updatedAt = prefs.updatedAt ?? null
+    localPrefs.preferenceLevels =
+      prefs.preferenceLevels && typeof prefs.preferenceLevels === 'object'
+        ? { ...prefs.preferenceLevels }
+        : {}
   },
   { immediate: true },
 )
 
 const visibleDefaults = computed(() => {
-  const foods = activeCategory.value === 'all'
-    ? DEFAULT_FOODS
-    : DEFAULT_FOODS.filter((food) => food.category === activeCategory.value)
+  const defaults =
+    activeCategory.value === 'all'
+      ? DEFAULT_FOODS
+      : DEFAULT_FOODS.filter((food) => food.category === activeCategory.value)
+  const customs =
+    activeCategory.value === 'all'
+      ? localPrefs.customFoods
+      : localPrefs.customFoods.filter((food) => food.category === activeCategory.value)
 
-  return [...foods].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  return [...defaults, ...customs].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
 })
 
 const sortedCustomFoods = computed(() =>
@@ -101,20 +104,63 @@ const searchGroups = computed(() => {
     groups.get(category).push(food)
   }
 
-  return FOOD_CATEGORY_OPTIONS
-    .map((option) => ({
-      value: option.value,
-      label: option.label,
-      foods: groups.get(option.value) || [],
-    }))
-    .filter((group) => group.foods.length)
+  return FOOD_CATEGORY_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+    foods: groups.get(option.value) || [],
+  })).filter((group) => group.foods.length)
 })
-const selectedCount = computed(() =>
-  localPrefs.selectedFoodIds.length + localPrefs.customFoods.length,
+const selectedCount = computed(
+  () => localPrefs.selectedFoodIds.length + localPrefs.customFoods.length,
 )
+const isDirty = computed(() => {
+  const currentSelected = [...localPrefs.selectedFoodIds].sort()
+  const savedSelected = Array.isArray(props.foodPreferences.selectedFoodIds)
+    ? [...props.foodPreferences.selectedFoodIds].sort()
+    : []
+  const currentCustom = [...localPrefs.customFoods].sort((a, b) =>
+    String(a.id).localeCompare(String(b.id)),
+  )
+  const savedCustom = Array.isArray(props.foodPreferences.customFoods)
+    ? [...props.foodPreferences.customFoods].sort((a, b) =>
+        String(a.id).localeCompare(String(b.id)),
+      )
+    : []
+
+  return (
+    JSON.stringify(currentSelected) !== JSON.stringify(savedSelected) ||
+    JSON.stringify(currentCustom) !== JSON.stringify(savedCustom) ||
+    JSON.stringify(localPrefs.preferenceLevels || {}) !==
+      JSON.stringify(props.foodPreferences.preferenceLevels || {})
+  )
+})
+
+const LEVEL_LABELS = { frequent: '常吃', normal: '普通', reduce: '少吃', exclude: '不吃' }
+const LEVEL_ORDER = ['normal', 'frequent', 'reduce', 'exclude']
+const LEVEL_COLORS = {
+  frequent: '#34c759',
+  normal: '#8e8e93',
+  reduce: '#ff9500',
+  exclude: '#ff3b30',
+}
 
 function isSelected(id) {
   return localPrefs.selectedFoodIds.includes(id)
+}
+
+function getLevel(foodId) {
+  return localPrefs.preferenceLevels[foodId] || 'normal'
+}
+
+function cycleLevel(foodId) {
+  const current = getLevel(foodId)
+  const idx = LEVEL_ORDER.indexOf(current)
+  const next = LEVEL_ORDER[(idx + 1) % LEVEL_ORDER.length]
+  if (next === 'normal') {
+    delete localPrefs.preferenceLevels[foodId]
+  } else {
+    localPrefs.preferenceLevels = { ...localPrefs.preferenceLevels, [foodId]: next }
+  }
 }
 
 function categoryLabel(food) {
@@ -130,7 +176,11 @@ function foodMatchesSearch(food, keyword) {
     ...(Array.isArray(food?.tags) ? food.tags : []),
   ]
 
-  return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
+  return fields.some((field) =>
+    String(field || '')
+      .toLowerCase()
+      .includes(keyword),
+  )
 }
 
 function toggleFood(id) {
@@ -148,9 +198,7 @@ function selectAllFoods() {
 
 function clearAllFoods() {
   const defaultIds = new Set(DEFAULT_FOODS.map((f) => f.id))
-  localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter(
-    (id) => !defaultIds.has(id),
-  )
+  localPrefs.selectedFoodIds = localPrefs.selectedFoodIds.filter((id) => !defaultIds.has(id))
 }
 
 function categoryAverages(category) {
@@ -245,16 +293,15 @@ function preferencesPayload() {
     selectedFoodIds: [...localPrefs.selectedFoodIds],
     customFoods: [...localPrefs.customFoods],
     updatedAt: localPrefs.updatedAt,
+    preferenceLevels: { ...localPrefs.preferenceLevels },
   }
 }
 
 function savePreferences() {
-  emit('save', preferencesPayload())
+  emit('save', preferencesPayload(), { scope: foodScope.value })
 }
 
-function saveAndRefresh() {
-  emit('save', preferencesPayload(), { refresh: true })
-}
+const foodScope = ref('save')
 
 function clearSelection() {
   localPrefs.selectedFoodIds = []
@@ -267,6 +314,12 @@ function skipAll() {
     updatedAt: new Date().toISOString(),
   })
 }
+
+defineExpose({
+  selectedCount,
+  isDirty,
+  savePreferences,
+})
 </script>
 
 <template>
@@ -276,11 +329,17 @@ function skipAll() {
         <p>个人可用食材池</p>
         <h2>{{ props.mode === 'setup' ? '选择可用食材' : '我的食材' }}</h2>
       </div>
-      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">返回</button>
+      <span v-if="isDirty" class="dirty-indicator">未保存更改</span>
+      <button v-if="showClose" type="button" class="text-action" @click="emit('close')">
+        返回
+      </button>
     </div>
 
     <div class="food-toolbar">
-      <span>已选 {{ selectedCount }} 项</span>
+      <span>
+        已选 {{ selectedCount }} 项
+        <em v-if="isDirty">未保存更改</em>
+      </span>
       <button type="button" class="text-action" @click="clearSelection">清空勾选</button>
     </div>
     <p v-if="selectedCount === 0" class="empty-state">
@@ -315,7 +374,6 @@ function skipAll() {
           <div class="food-grid">
             <template v-for="food in group.foods" :key="food.id">
               <button
-                v-if="food.source !== 'custom' && !String(food.id).startsWith('custom-')"
                 type="button"
                 class="food-card"
                 :class="{ selected: isSelected(food.id) }"
@@ -323,17 +381,29 @@ function skipAll() {
               >
                 <span>
                   {{ food.name }}
-                  <small class="food-card-meta">{{ categoryLabel(food) }}</small>
+                  <small class="food-card-meta"
+                    >{{ categoryLabel(food)
+                    }}{{
+                      food.source === 'custom' || String(food.id).startsWith('custom-')
+                        ? ' · 自定义'
+                        : ''
+                    }}</small
+                  >
                 </span>
-                <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+                <span class="food-card-actions">
+                  <span
+                    v-if="isSelected(food.id)"
+                    class="level-badge"
+                    :style="{
+                      background: LEVEL_COLORS[getLevel(food.id)] + '18',
+                      color: LEVEL_COLORS[getLevel(food.id)],
+                    }"
+                    @click.stop="cycleLevel(food.id)"
+                    >{{ LEVEL_LABELS[getLevel(food.id)] }}</span
+                  >
+                  <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+                </span>
               </button>
-              <article v-else class="food-card food-card-static selected">
-                <span>
-                  {{ food.name }}
-                  <small class="food-card-meta">{{ categoryLabel(food) }} · 自定义</small>
-                </span>
-                <i>✓</i>
-              </article>
             </template>
           </div>
         </section>
@@ -352,7 +422,19 @@ function skipAll() {
           @click="toggleFood(food.id)"
         >
           <span>{{ food.name }}</span>
-          <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+          <span class="food-card-actions">
+            <span
+              v-if="isSelected(food.id)"
+              class="level-badge"
+              :style="{
+                background: LEVEL_COLORS[getLevel(food.id)] + '18',
+                color: LEVEL_COLORS[getLevel(food.id)],
+              }"
+              @click.stop="cycleLevel(food.id)"
+              >{{ LEVEL_LABELS[getLevel(food.id)] }}</span
+            >
+            <i>{{ isSelected(food.id) ? '✓' : '' }}</i>
+          </span>
         </button>
       </div>
     </template>
@@ -410,9 +492,7 @@ function skipAll() {
               {{ FOOD_CATEGORY_LABELS[food.category] }}
               <em v-if="food.source === 'estimated'">估算</em>
             </span>
-            <small v-if="food.source === 'estimated'">
-              该食材营养为估算值，仅用于粗略规划
-            </small>
+            <small v-if="food.source === 'estimated'"> 该食材营养为估算值，仅用于粗略规划 </small>
           </div>
           <button type="button" @click="deleteCustomFood(food.id)">删除</button>
         </article>
@@ -420,13 +500,44 @@ function skipAll() {
     </div>
 
     <div class="food-actions">
+      <span class="food-actions-count">
+        已选 {{ selectedCount }} 项
+        <em v-if="isDirty">未保存更改</em>
+      </span>
       <template v-if="props.mode === 'setup'">
         <button type="button" class="ghost-action" @click="skipAll">跳过，使用全部食材</button>
         <button type="button" class="primary-action" @click="savePreferences">继续生成餐单</button>
       </template>
       <template v-else>
-        <button type="button" class="ghost-action" @click="savePreferences">保存</button>
-        <button type="button" class="primary-action" @click="saveAndRefresh">保存并刷新食谱</button>
+        <div v-if="props.mode !== 'setup'" class="field-group" style="padding: 0 0.5rem">
+          <span class="field-label" style="font-size: 0.78rem; color: var(--color-muted)"
+            >应用范围</span
+          >
+          <div class="segmented three-wide">
+            <button
+              type="button"
+              :class="{ active: foodScope === 'save' }"
+              @click="foodScope = 'save'"
+            >
+              仅保存
+            </button>
+            <button
+              type="button"
+              :class="{ active: foodScope === 'today' }"
+              @click="foodScope = 'today'"
+            >
+              应用到今日
+            </button>
+            <button
+              type="button"
+              :class="{ active: foodScope === 'future' }"
+              @click="foodScope = 'future'"
+            >
+              应用到后续
+            </button>
+          </div>
+        </div>
+        <button type="button" class="primary-action" @click="savePreferences">保存</button>
       </template>
     </div>
   </section>
@@ -444,6 +555,23 @@ function skipAll() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.food-title > div {
+  min-width: 0;
+}
+
+.dirty-indicator {
+  min-height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  border-radius: 999rem;
+  color: #8a5a00;
+  background: #fff0d8;
+  font-size: 0.76rem;
+  font-weight: 900;
 }
 
 .food-toolbar {
@@ -458,9 +586,18 @@ function skipAll() {
 }
 
 .food-toolbar span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 900;
+}
+
+.food-toolbar em,
+.food-actions-count em {
+  color: #8a5a00;
+  font-style: normal;
 }
 
 .food-toolbar .text-action {
@@ -515,7 +652,7 @@ function skipAll() {
 }
 
 .food-tabs button.active {
-  border-color: rgba(91, 166, 111, 0.55);
+  border-color: var(--color-primary);
   color: #fff;
   background: var(--green);
 }
@@ -542,7 +679,7 @@ function skipAll() {
 }
 
 .food-card.selected {
-  border-color: rgba(91, 166, 111, 0.65);
+  border-color: var(--color-primary);
   background: #edf7ed;
   color: var(--green-deep);
 }
@@ -551,12 +688,30 @@ function skipAll() {
   width: 1.25rem;
   height: 1.25rem;
   flex: 0 0 auto;
-  border: 1px solid rgba(91, 166, 111, 0.45);
+  border: 1px solid var(--color-primary-border);
   border-radius: 50%;
   color: var(--green-deep);
   font-style: normal;
   line-height: 1.15rem;
   text-align: center;
+}
+
+.food-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.level-badge {
+  min-height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.4rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .custom-section,
@@ -566,6 +721,12 @@ function skipAll() {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+}
+
+.food-actions-count {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
 .custom-form {

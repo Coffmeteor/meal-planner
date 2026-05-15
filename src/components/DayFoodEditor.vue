@@ -1,11 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import {
-  FOOD_CATEGORY_LABELS,
-  FOOD_CATEGORY_OPTIONS,
-} from '../utils/foodMeta.js'
+import { FOOD_CATEGORY_LABELS, FOOD_CATEGORY_OPTIONS } from '../utils/foodMeta.js'
 import { formatDate } from '../utils/helpers.js'
-import { mealFoods } from '../utils/mealDisplay.js'
+import { mealFoods } from '../domain/meal-plan/mealDisplay.js'
 
 const props = defineProps({
   day: {
@@ -24,10 +21,7 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'cancel'])
 
-const tabs = [
-  { value: 'all', label: FOOD_CATEGORY_LABELS.all },
-  ...FOOD_CATEGORY_OPTIONS,
-]
+const tabs = [{ value: 'all', label: FOOD_CATEGORY_LABELS.all }, ...FOOD_CATEGORY_OPTIONS]
 const activeCategory = ref('all')
 const selectedFoodIds = ref([])
 const searchQuery = ref('')
@@ -64,13 +58,11 @@ const searchGroups = computed(() => {
     groups.get(category).push(food)
   }
 
-  return FOOD_CATEGORY_OPTIONS
-    .map((option) => ({
-      value: option.value,
-      label: option.label,
-      foods: groups.get(option.value) || [],
-    }))
-    .filter((group) => group.foods.length)
+  return FOOD_CATEGORY_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.label,
+    foods: groups.get(option.value) || [],
+  })).filter((group) => group.foods.length)
 })
 const selectedCount = computed(() => selectedFoodIds.value.length)
 
@@ -78,9 +70,8 @@ watch(
   () => props.day,
   (day) => {
     const existing = day?.dayFoodPool?.selectedFoodIds
-    selectedFoodIds.value = Array.isArray(existing) && existing.length
-      ? [...existing]
-      : usedFoodIds(day)
+    selectedFoodIds.value =
+      Array.isArray(existing) && existing.length ? [...existing] : usedFoodIds(day)
   },
   { immediate: true },
 )
@@ -123,7 +114,11 @@ function foodMatchesSearch(food, keyword) {
     ...(Array.isArray(food?.tags) ? food.tags : []),
   ]
 
-  return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
+  return fields.some((field) =>
+    String(field || '')
+      .toLowerCase()
+      .includes(keyword),
+  )
 }
 
 function toggleFood(foodId) {
@@ -229,9 +224,7 @@ function handleSave() {
       </div>
     </template>
 
-    <p v-if="!isSearching && !foodPool.length" class="empty-state">
-      暂无可选食材。
-    </p>
+    <p v-if="!isSearching && !foodPool.length" class="empty-state">暂无可选食材。</p>
 
     <div class="day-food-actions">
       <button type="button" class="ghost-action" @click="emit('cancel')">取消</button>

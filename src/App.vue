@@ -1,951 +1,274 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import CheckinProgress from './components/CheckinProgress.vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import AppTopBar from './components/AppTopBar.vue'
+import BottomTabBar from './components/BottomTabBar.vue'
 import DayFoodEditor from './components/DayFoodEditor.vue'
 import FoodPreferences from './components/FoodPreferences.vue'
+import FoodsPage from './components/FoodsPage.vue'
 import InputForm from './components/InputForm.vue'
 import MealEditor from './components/MealEditor.vue'
-import PlanCalendar from './components/PlanCalendar.vue'
+import PlanPage from './components/PlanPage.vue'
+import ProfilePage from './components/ProfilePage.vue'
 import ProfileView from './components/ProfileView.vue'
+import ProgressPage from './components/ProgressPage.vue'
 import RecommendView from './components/RecommendView.vue'
 import ScheduleConfirm from './components/ScheduleConfirm.vue'
+import TodayDashboard from './components/TodayDashboard.vue'
 import WeightProgress from './components/WeightProgress.vue'
-import {
-  clearAllData,
-  exportAllData,
-  getAppState,
-  importAllData,
-  loadCheckins,
-  loadWeightLogs,
-  saveLatestPlan,
-  saveProfile,
-  saveSchedule,
-} from './storage/index.js'
-import {
-  calculateDeficitPercent,
-  calculateMacrosV2,
-  calculateTargetCaloriesV2,
-  calculateTdee,
-  suggestDietMethod,
-} from './utils/calc.js'
-import {
-  emptyPreferences,
-  getAvailableFoods,
-  loadFoodPreferences,
-  saveFoodPreferences,
-} from './utils/foodPreferences.js'
-import {
-  generateMealPlan,
-  generateScheduleFromProfile,
-  regenerateDay,
-  regenerateSingleMeal,
-} from './utils/planGenerator.js'
-import { normalizeDietMethod, normalizeEatingWindow } from './utils/scheduleUtils.js'
-import { foods as defaultFoods } from './utils/foods.js'
-import {
-  calculateDayTotals,
-  mealFoods,
-  normalizeEditedMeal,
-} from './utils/mealDisplay.js'
+import CheckinProgress from './components/CheckinProgress.vue'
+import { useAppState } from './composables/useAppState.js'
+import { useWizardFlow } from './composables/useWizardFlow.js'
+import { usePlanActions } from './composables/usePlanActions.js'
+import { useSubPages } from './composables/useSubPages.js'
+import { useToast } from './composables/useToast.js'
+import { useScrollRestore } from './composables/useScrollRestore.js'
 
-const LS_PREFIX = 'meal-planner:v1:'
-const defaultFoodPreferences = emptyPreferences()
+// ── Composables ────────────────────────────────────────────────
+const app = useAppState()
+const toast = useToast()
+const nav = useSubPages(app)
+const { queueScrollToPageTop } = useScrollRestore()
 
-const view = ref(null) // null = loading; wizard: 'input' | 'recommend' | 'confirm' | 'foods'; shell: 'plan'
-const activeTab = ref('plan')
-const params = ref(null)
-const schedule = ref(null)
-const plan = ref([])
-const weightLogs = ref([])
-const checkins = ref([])
-const editMode = ref(false)
-const planMeta = ref(null)
-const foodPrefs = ref(null)
-const foodSetupMode = ref(false)
-const recommendation = ref(null)
-const saveError = ref('')
-const saving = ref(false)
-const toastMsg = ref('')
-const editingMeal = ref(null)
-const editingDayFood = ref(null)
+// ── Create refs before composables that depend on them ─────────
+const activeTab = ref('today')
 
+const wizard = useWizardFlow(app)
+const actions = usePlanActions({
+  appState: app,
+  navigation: nav,
+  toast,
+  activeTab,
+  foodSetupMode: wizard.foodSetupMode,
+  view: wizard.view,
+})
+
+const { toastMsg } = toast
+
+// ── Expose refs for template auto-unwrapping ───────────────────
+const {
+  params,
+  schedule,
+  plan,
+  planMeta,
+  foodPrefs,
+  weightLogs,
+  checkins,
+  startDate,
+  eatingWindow,
+  todayChecked,
+  dataVersion,
+  saveError,
+  defaultFoodPreferences,
+} = app
+const { view, recommendation, foodSetupMode } = wizard
+const { hasSubPage, activePage, activePageTitle } = nav
+
+// ── Tab config ─────────────────────────────────────────────────
 const tabs = [
-  { value: 'plan', label: '餐单', icon: '餐' },
-  { value: 'foods', label: '食材', icon: '材' },
-  { value: 'progress', label: '进度', icon: '趋' },
-  { value: 'checkin', label: '打卡', icon: '记' },
-  { value: 'profile', label: '我的', icon: '我' },
+  { value: 'foods', label: '食材' },
+  { value: 'plan', label: '餐单' },
+  { value: 'today', label: '今日' },
+  { value: 'progress', label: '进度' },
+  { value: 'profile', label: '我的' },
 ]
 
-function showToast(msg) {
-  toastMsg.value = msg
-  setTimeout(() => { toastMsg.value = '' }, 2200)
+const tabComponents = {
+  foods: FoodsPage,
+  plan: PlanPage,
+  today: TodayDashboard,
+  progress: ProgressPage,
+  profile: ProfilePage,
 }
 
-const progress = computed(() => {
-  const steps = { input: 1, recommend: 2, confirm: 3, foods: 4, plan: 5 }
-  return steps[view.value] || 0
-})
-const isAppShell = computed(() => view.value === 'plan' && plan.value.length > 0)
-const activeTabLabel = computed(() =>
-  tabs.find((tab) => tab.value === activeTab.value)?.label || '餐单',
+const subPageComponents = {
+  mealEditor: MealEditor,
+  dayFoodEditor: DayFoodEditor,
+  weightEntry: WeightProgress,
+  checkinForm: CheckinProgress,
+  dataBackup: ProfileView,
+  profileEdit: InputForm,
+  lifestyleEdit: InputForm,
+  planSettings: InputForm,
+  customFood: FoodPreferences,
+}
+
+// ── Computed ───────────────────────────────────────────────────
+const isAppShell = computed(() => wizard.view.value === 'shell' && app.plan.value.length > 0)
+const activeTabComponent = computed(() => tabComponents[activeTab.value] || TodayDashboard)
+const activePageComponent = computed(
+  () => subPageComponents[nav.activePage.value?.name] || TodayDashboard,
 )
-const headerPill = computed(() => {
-  if (isAppShell.value) return activeTabLabel.value
-  return progress.value ? `${progress.value}/5` : ''
-})
-const todayChecked = computed(() => checkins.value.some((item) => item.date === todayYmd()))
-const pageKey = computed(() => {
-  if (view.value !== 'plan') return `wizard:${view.value || 'loading'}`
-  if (activeTab.value !== 'plan') return `tab:${activeTab.value}`
-  if (editingDayFood.value !== null) return 'plan:day-food-editor'
-  if (editingMeal.value) return 'plan:meal-editor'
-  return 'plan:calendar'
-})
+const activePageProps = computed(() => nav.subPageProps(nav.activePage.value))
 
+const activeTabProps = computed(() => ({
+  plan: app.plan.value,
+  planMeta: app.planMeta.value,
+  profile: app.params.value,
+  weightLogs: app.weightLogs.value,
+  checkins: app.checkins.value,
+  foodPreferences: app.foodPrefs.value || app.defaultFoodPreferences,
+  startDate: app.startDate.value,
+  eatingWindow: app.eatingWindow.value,
+  todayChecked: app.todayChecked.value,
+  planDays:
+    app.plan.value.length ||
+    Number(app.planMeta.value?.days) ||
+    Number(app.params.value?.days) ||
+    7,
+}))
+
+// ── Watchers ───────────────────────────────────────────────────
 watch(activeTab, (tab) => {
-  if (!tabs.some((item) => item.value === tab)) return
-  if (tab !== 'plan') {
-    editingMeal.value = null
-    editingDayFood.value = null
+  if (!tabs.some((item) => item.value === tab)) {
+    activeTab.value = 'today'
+    return
   }
-  lsSave('activeTab', tab)
-})
-
-watch(pageKey, () => {
+  app.lsSave('activeTab', tab)
   queueScrollToPageTop()
 })
 
-const editorMeal = computed(() => {
-  if (!editingMeal.value) return null
-  return plan.value[editingMeal.value.dayIndex]?.meals?.[editingMeal.value.mealIndex] || null
-})
-const editorAvailableFoods = computed(() => {
-  const available = getAvailableFoods(foodPrefs.value)
-  return available.length ? available : defaultFoods
-})
-const editorMealTargetCalories = computed(() => {
-  if (!editingMeal.value) return 0
+watch(wizard.view, () => queueScrollToPageTop())
+watch(nav.hasSubPage, () => queueScrollToPageTop())
 
-  const { dayIndex, mealIndex } = editingMeal.value
-  const day = plan.value[dayIndex]
-  const dailyTarget =
-    Number(day?.targets?.calories)
-    || Number(planMeta.value?.targetCalories)
-    || Number(params.value?.targetCalories)
-    || 0
-  const split = Number(schedule.value?.split?.[mealIndex])
-
-  if (Number.isFinite(split) && split > 0) return Math.round(dailyTarget * split)
-
-  return Math.round(dailyTarget / Math.max(day?.meals?.length || 1, 1))
-})
-const dayFoodEditorDay = computed(() => {
-  if (editingDayFood.value === null) return null
-  return plan.value[editingDayFood.value] || null
-})
-const dayFoodEditorFoods = computed(() => {
-  if (!dayFoodEditorDay.value) return editorAvailableFoods.value
-  return mergeFoodsById(editorAvailableFoods.value, foodsUsedByDay(dayFoodEditorDay.value))
-})
-
-// ── Startup ──────────────────────────────────────────────────────────
-
-onMounted(loadAppState)
-
-let _scrollPending = false
-function scrollToPageTop() {
-  if (_scrollPending) return
-  _scrollPending = true
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: 'auto' })
-      _scrollPending = false
-    })
-  })
-}
-
-watch(view, () => scrollToPageTop())
-watch(activeTab, () => scrollToPageTop())
-
-async function loadAppState() {
+// ── Init ───────────────────────────────────────────────────────
+onMounted(async () => {
+  await app.loadAppState()
   try {
-    const [appState, loadedFoodPrefs, loadedWeightLogs, loadedCheckins] = await Promise.all([
-      getAppState(),
-      loadFoodPreferences(),
-      loadWeightLogs(),
-      loadCheckins(),
-    ])
-    const lp = appState.latestPlan
-    const rawLatestPlan = readLatestPlanFromLocalStorage()
-    foodPrefs.value = loadedFoodPrefs
-    weightLogs.value = loadedWeightLogs
-    checkins.value = loadedCheckins
-    const loadedSchedule = appState.schedule || appState.latestPlan?.scheduleSnapshot || null
-    const loadedEatingWindow =
-      rawLatestPlan?.eatingWindow
-      ?? rawLatestPlan?.paramsSnapshot?.eatingWindow
-      ?? rawLatestPlan?.scheduleSnapshot?.eatingWindow
-      ?? loadedSchedule?.eatingWindow
-      ?? lp?.eatingWindow
-      ?? lp?.scheduleSnapshot?.eatingWindow
-      ?? null
-    const loadedParams = lp?.paramsSnapshot || appState.profile || null
-    params.value =
-      loadedParams && loadedEatingWindow
-        ? { ...loadedParams, eatingWindow: loadedEatingWindow }
-        : loadedParams
-    schedule.value =
-      loadedSchedule && loadedEatingWindow && !loadedSchedule.eatingWindow
-        ? { ...loadedSchedule, eatingWindow: loadedEatingWindow }
-        : loadedSchedule
-    plan.value = lp?.plan || []
-    planMeta.value = plan.value.length
-      ? {
-          startDate: lp?.startDate ?? plan.value[0]?.date ?? null,
-          generatedAt: lp?.generatedAt ?? null,
-          scheduleSnapshot: lp?.scheduleSnapshot ?? null,
-          paramsSnapshot: lp?.paramsSnapshot ?? null,
-          days: rawLatestPlan?.days ?? lp?.days ?? plan.value.length,
-          dietMethod: rawLatestPlan?.dietMethod ?? lp?.dietMethod ?? null,
-          deficitPercent: rawLatestPlan?.deficitPercent ?? lp?.deficitPercent ?? null,
-          targetCalories: rawLatestPlan?.targetCalories ?? lp?.targetCalories ?? null,
-          macros: rawLatestPlan?.macros ?? lp?.macros ?? null,
-          recommendationReason: rawLatestPlan?.recommendationReason ?? lp?.recommendationReason ?? null,
-          eatingWindow: loadedEatingWindow,
-        }
-      : null
-
-    const savedTab = readJsonFromLocalStorage('activeTab')
-    if (tabs.some((tab) => tab.value === savedTab)) activeTab.value = savedTab
-    editingMeal.value = null
-    editingDayFood.value = null
-    view.value = plan.value.length ? 'plan' : 'input'
-  } catch (error) {
-    console.warn('Failed to initialize app state', error)
-    view.value = 'input'
-  }
-}
-
-// ── LocalStorage sync save (instant, non-blocking) ───────────────────
-
-function lsSave(key, value) {
-  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)) } catch (e) { /* */ }
-}
-
-function readLatestPlanFromLocalStorage() {
-  return readJsonFromLocalStorage('latestPlan')
-}
-
-function readJsonFromLocalStorage(key) {
-  try {
-    const raw = localStorage.getItem(LS_PREFIX + key)
-    return raw ? JSON.parse(raw) : null
+    const raw = localStorage.getItem('meal-planner:v1:activeTab')
+    const saved = raw ? JSON.parse(raw) : null
+    if (saved && tabs.some((t) => t.value === saved)) activeTab.value = saved
   } catch (e) {
-    return null
+    /* ignore */
   }
-}
+  nav.clearPageStack()
+  wizard.view.value = app.plan.value.length ? 'shell' : 'input'
+})
 
-function lsRemove(key) {
-  try { localStorage.removeItem(LS_PREFIX + key) } catch (e) { /* */ }
-}
-
-// ── Background async save to IndexedDB ───────────────────────────────
-
-async function bgSave(profileData, scheduleData, planData, meta) {
-  saving.value = true
-  try {
-    await Promise.all([
-      saveProfile(profileData),
-      saveSchedule(scheduleData),
-      saveLatestPlan({
-        plan: planData,
-        ...meta,
-        scheduleSnapshot: scheduleData,
-        paramsSnapshot: profileData,
-      }),
-    ])
-    saveError.value = ''
-  } catch (e) {
-    saveError.value = '本地保存失败，数据可能下次无法恢复'
-    console.warn('IndexedDB bg save failed', e)
-  } finally {
-    saving.value = false
+// ── Delegated handlers ─────────────────────────────────────────
+async function handleFoodsSave(updatedPrefs, options = {}) {
+  const result = await actions.handleFoodsSave(updatedPrefs, options)
+  if (result === 'shell') {
+    wizard.foodSetupMode.value = false
+    activeTab.value = 'today'
+    wizard.view.value = 'shell'
   }
-}
-
-async function bgSaveProfileAndSchedule(profileData, scheduleData) {
-  saving.value = true
-  try {
-    await Promise.all([saveProfile(profileData), saveSchedule(scheduleData)])
-    saveError.value = ''
-  } catch (e) {
-    saveError.value = '本地保存失败，数据可能下次无法恢复'
-    console.warn('IndexedDB profile/schedule save failed', e)
-  } finally {
-    saving.value = false
-  }
-}
-
-function savePlan() {
-  if (!plan.value.length) return
-
-  const existingMeta = planMeta.value || {}
-  lsSave('latestPlan', {
-    plan: plan.value,
-    ...existingMeta,
-    scheduleSnapshot: schedule.value,
-    paramsSnapshot: params.value,
-  })
-  bgSave(params.value, schedule.value, plan.value, existingMeta)
-}
-
-// ── Plan metadata helper ─────────────────────────────────────────────
-
-function setPlanMeta(planArr, recommendationFields = {}) {
-  const now = new Date()
-  planMeta.value = {
-    generatedAt: now.toISOString(),
-    startDate: planArr[0]?.date ?? formatDateYmd(now),
-    days: recommendationFields.days ?? params.value?.days ?? planArr.length,
-    dietMethod: recommendationFields.dietMethod ?? params.value?.dietMethod ?? null,
-    deficitPercent: recommendationFields.deficitPercent ?? params.value?.deficitPercent ?? null,
-    targetCalories: recommendationFields.targetCalories ?? params.value?.targetCalories ?? null,
-    macros: recommendationFields.macros ?? params.value?.macroTargets ?? null,
-    eatingWindow:
-      recommendationFields.eatingWindow
-      ?? schedule.value?.eatingWindow
-      ?? params.value?.eatingWindow
-      ?? null,
-    recommendationReason:
-      recommendationFields.recommendationReason
-      ?? params.value?.recommendationReason
-      ?? null,
-  }
-}
-
-function formatDateYmd(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function todayYmd() {
-  return formatDateYmd(new Date())
-}
-
-function rebasePlanDates(planArr, startDate) {
-  if (!startDate) return planArr
-  const [year, month, day] = String(startDate).split('-').map(Number)
-  if (!year || !month || !day) return planArr
-
-  const base = new Date(year, month - 1, day)
-  if (Number.isNaN(base.getTime())) return planArr
-
-  return planArr.map((dayPlan, index) => {
-    const date = new Date(base)
-    date.setDate(base.getDate() + index)
-    return {
-      ...dayPlan,
-      date: formatDateYmd(date),
-    }
-  })
-}
-
-function buildRecommendation(profile) {
-  const dietSuggestion = suggestDietMethod(profile)
-  const deficitSuggestion = calculateDeficitPercent(profile)
-  const tdee = calculateTdee(profile)
-  const targetCalories = calculateTargetCaloriesV2(
-    tdee,
-    deficitSuggestion.recommended,
-    profile.gender,
-  )
-  const scheduleSuggestion = generateScheduleFromProfile(profile, dietSuggestion.method)
-  const macroTargets = calculateMacrosV2(profile, targetCalories, deficitSuggestion.recommended)
-
-  recommendation.value = {
-    dietSuggestion,
-    deficitSuggestion,
-    scheduleSuggestion,
-    macroTargets,
-  }
-}
-
-// ── Handlers ─────────────────────────────────────────────────────────
-
-function handleInputSubmit(nextParams) {
-  params.value = nextParams
-  editMode.value = false
-  buildRecommendation(nextParams)
-  view.value = 'recommend'
-}
-
-function handleRecommendBack() {
-  view.value = 'input'
-}
-
-function currentEatingWindow() {
-  const rawWindow = schedule.value?.eatingWindow || params.value?.eatingWindow
-  return normalizeEatingWindow(
-    params.value,
-    rawWindow?.type && rawWindow.type !== 'none' ? rawWindow.type : params.value?.dietMethod,
-    rawWindow,
-  )
-}
-
-function handleRecommendAccept({
-  dietMethod,
-  deficitPercent,
-  macros,
-  schedule: acceptedSchedule,
-  eatingWindow,
-}) {
-  dietMethod = normalizeDietMethod(dietMethod)
-  const tdee = calculateTdee(params.value)
-  const targetCalories = calculateTargetCaloriesV2(tdee, deficitPercent, params.value.gender)
-  const acceptedEatingWindow = normalizeEatingWindow(params.value, dietMethod, eatingWindow)
-  const enrichedParams = {
-    ...params.value,
-    dietMethod,
-    deficitPercent,
-    eatingWindow: acceptedEatingWindow,
-    targetCalories,
-    macroTargets: {
-      protein: macros.protein,
-      fat: macros.fat,
-      carbs: macros.carbs,
-    },
-    recommendationReason: recommendation.value?.dietSuggestion?.reason ?? null,
-  }
-
-  params.value = enrichedParams
-  schedule.value = {
-    ...acceptedSchedule,
-    eatingWindow: acceptedEatingWindow,
-  }
-
-  lsSave('profile', enrichedParams)
-  lsSave('schedule', schedule.value)
-  bgSaveProfileAndSchedule(enrichedParams, schedule.value)
-
-  view.value = 'confirm'
-}
-
-function handleConfirmBack(payload = {}) {
-  if (payload.params) params.value = payload.params
-  if (payload.schedule) schedule.value = payload.schedule
-  view.value = 'recommend'
-}
-
-function handleConfirm({ params: confirmedParams, schedule: confirmedSchedule }) {
-  params.value = confirmedParams
-  schedule.value = confirmedSchedule
-  foodSetupMode.value = true
-
-  lsSave('profile', confirmedParams)
-  lsSave('schedule', confirmedSchedule)
-  bgSaveProfileAndSchedule(confirmedParams, confirmedSchedule)
-
-  view.value = 'foods'
-}
-
-function handleEditProfile() {
-  editMode.value = true
-  view.value = 'input'
-}
-
-function handleCancelEdit() {
-  editMode.value = false
-  view.value = plan.value.length ? 'plan' : 'input'
-}
-
-function handleRefreshRecipe() {
-  if (!params.value || !schedule.value) {
-    saveError.value = '缺少计划参数，无法刷新'
-    return
-  }
-
-  const preservedMeals = []
-  plan.value.forEach((day, dayIndex) => {
-    day.meals.forEach((meal, mealIndex) => {
-      if (meal.locked || meal.edited) preservedMeals.push({ dayIndex, mealIndex, meal })
-    })
-  })
-
-  const existingMeta = planMeta.value || {}
-  const oldStartDate = existingMeta.startDate
-  const nextPlan = rebasePlanDates(
-    generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow()),
-    oldStartDate,
-  )
-
-  const daysToRecalculate = new Set()
-  preservedMeals.forEach(({ dayIndex, mealIndex, meal }) => {
-    if (nextPlan[dayIndex]?.meals[mealIndex]) {
-      nextPlan[dayIndex].meals[mealIndex] = meal
-      daysToRecalculate.add(dayIndex)
-    }
-  })
-  daysToRecalculate.forEach((dayIndex) => {
-    nextPlan[dayIndex].totals = calculateDayTotals(nextPlan[dayIndex].meals)
-  })
-
-  plan.value = nextPlan
-
-  const recFields = {
-    dietMethod: existingMeta.dietMethod ?? params.value?.dietMethod ?? null,
-    deficitPercent: existingMeta.deficitPercent ?? params.value?.deficitPercent ?? null,
-    targetCalories: existingMeta.targetCalories ?? params.value?.targetCalories ?? null,
-    macros: existingMeta.macros ?? params.value?.macroTargets ?? null,
-    eatingWindow: existingMeta.eatingWindow ?? currentEatingWindow(),
-    recommendationReason:
-      existingMeta.recommendationReason
-      ?? params.value?.recommendationReason
-      ?? null,
-  }
-  setPlanMeta(plan.value, recFields)
-  savePlan()
-  showToast('✅ 已刷新食谱')
-}
-
-function handleEditMeal({ dayIndex, mealIndex }) {
-  if (!plan.value[dayIndex]?.meals?.[mealIndex]) return
-  editingMeal.value = { dayIndex, mealIndex }
-}
-
-function handleCancelMealEdit() {
-  editingMeal.value = null
-}
-
-function handleSaveMeal({ dayIndex, mealIndex, foods, meal: savedMeal }) {
-  const meal = plan.value[dayIndex]?.meals?.[mealIndex]
-  if (!meal) return
-
-  const now = new Date().toISOString()
-  const nextMeal = savedMeal
-    ? normalizeEditedMeal(meal, savedMeal.foods || foods, { name: savedMeal.name, updatedAt: now })
-    : normalizeEditedMeal(meal, foods, { updatedAt: now })
-
-  plan.value = plan.value.map((day, currentDayIndex) => {
-    if (currentDayIndex !== dayIndex) return day
-
-    const meals = day.meals.map((currentMeal, currentMealIndex) =>
-      currentMealIndex === mealIndex
-        ? {
-            ...currentMeal,
-            ...nextMeal,
-          }
-        : currentMeal,
-    )
-
-    return {
-      ...day,
-      meals,
-      totals: calculateDayTotals(meals),
-      edited: true,
-      updatedAt: now,
-    }
-  })
-
-  editingMeal.value = null
-  savePlan()
-  showToast('已保存餐次')
-}
-
-function handleRefreshDay(dayIndex) {
-  const day = plan.value[dayIndex]
-  if (!day || !params.value || !schedule.value) return
-
-  const nextDay = regenerateDay(
-    params.value,
-    schedule.value,
-    resolveAvailableFoods(),
-    day,
-    {},
-    currentEatingWindow(),
-  )
-  plan.value = plan.value.map((planDay, currentDayIndex) =>
-    currentDayIndex === dayIndex ? nextDay : planDay,
-  )
-  savePlan()
-  showToast('已刷新当天餐单')
-}
-
-function handleEditDayFood(dayIndex) {
-  if (!plan.value[dayIndex]) return
-  editingMeal.value = null
-  editingDayFood.value = dayIndex
-}
-
-function handleCancelDayFoodEdit() {
-  editingDayFood.value = null
-}
-
-function handleSaveDayFood({ dayIndex, selectedFoodIds }) {
-  const day = plan.value[dayIndex]
-  if (!day || !params.value || !schedule.value) return
-
-  const availableFoods = dayFoodPoolFor(day)
-  const selectedSet = new Set(selectedFoodIds)
-  const selectedFoods = availableFoods.filter((food) => selectedSet.has(food.id))
-  if (!selectedFoods.length) {
-    showToast('请至少选择一种食材')
-    return
-  }
-
-  const now = new Date().toISOString()
-  const nextDay = regenerateDay(
-    params.value,
-    schedule.value,
-    selectedFoods,
-    day,
-    { strictFoodPool: true, editSource: 'dayFoodPool' },
-    currentEatingWindow(),
-  )
-  plan.value = plan.value.map((planDay, currentDayIndex) =>
-    currentDayIndex === dayIndex
-      ? {
-          ...nextDay,
-          dayFoodPool: {
-            selectedFoodIds: [...selectedFoodIds],
-            updatedAt: now,
-          },
-          edited: true,
-          editSource: 'dayFoodPool',
-          updatedAt: now,
-        }
-      : planDay,
-  )
-  editingDayFood.value = null
-  savePlan()
-  showToast('已更新当天食材')
-}
-
-function handleLockMeal({ dayIndex, mealIndex }) {
-  if (!plan.value[dayIndex]?.meals[mealIndex]) return
-
-  plan.value = plan.value.map((day, currentDayIndex) => {
-    if (currentDayIndex !== dayIndex) return day
-
-    return {
-      ...day,
-      meals: day.meals.map((meal, currentMealIndex) =>
-        currentMealIndex === mealIndex
-          ? { ...meal, locked: true, updatedAt: new Date().toISOString() }
-          : meal,
-      ),
-    }
-  })
-  savePlan()
-}
-
-function handleUnlockMeal({ dayIndex, mealIndex }) {
-  if (!plan.value[dayIndex]?.meals[mealIndex]) return
-
-  plan.value = plan.value.map((day, currentDayIndex) => {
-    if (currentDayIndex !== dayIndex) return day
-
-    return {
-      ...day,
-      meals: day.meals.map((meal, currentMealIndex) =>
-        currentMealIndex === mealIndex
-          ? { ...meal, locked: false, updatedAt: new Date().toISOString() }
-          : meal,
-      ),
-    }
-  })
-  savePlan()
-}
-
-function handleReplaceMeal({ dayIndex, mealIndex }) {
-  const oldMeal = plan.value[dayIndex]?.meals[mealIndex]
-  if (!oldMeal) return
-
-  if (oldMeal.locked) {
-    showToast('请先取消锁定再更换')
-    return
-  }
-
-  plan.value = regenerateSingleMeal(
-    plan.value,
-    dayIndex,
-    mealIndex,
-    params.value,
-    schedule.value,
-    resolveAvailableFoods(),
-    currentEatingWindow(),
-  )
-  savePlan()
-  showToast('✅ 已更换')
 }
 
 async function handleClearData() {
-  const firstConfirm = confirm('确定清空全部本地数据吗？此操作不可恢复。')
-  if (!firstConfirm) return
-  const secondConfirm = confirm('请再次确认：将删除资料、餐单、食材、体重和打卡记录。')
-  if (!secondConfirm) return
-
-  try {
-    await clearAllData()
-  } catch (e) { /* */ }
-  activeTab.value = 'plan'
-  for (const k of [
-    'profile',
-    'schedule',
-    'latestPlan',
-    'foodPreferences',
-    'weightLogs',
-    'checkins',
-    'activeTab',
-  ]) lsRemove(k)
-  params.value = null
-  schedule.value = null
-  plan.value = []
-  weightLogs.value = []
-  checkins.value = []
-  foodPrefs.value = emptyPreferences()
-  foodSetupMode.value = false
-  editMode.value = false
-  recommendation.value = null
-  planMeta.value = null
-  saveError.value = ''
-  saving.value = false
-  editingMeal.value = null
-  editingDayFood.value = null
-  view.value = 'input'
-}
-
-async function handleImportData(importData) {
-  const snapshot = await exportAllData()
-  try {
-    await clearAllData()
-    lsRemove('activeTab')
-    await importAllData(importData)
-    activeTab.value = 'plan'
-    await loadAppState()
-    showToast('导入完成')
-  } catch (error) {
-    console.warn('Import failed', error)
-    try {
-      await clearAllData()
-      await importAllData(snapshot)
-      await loadAppState()
-    } catch (restoreError) {
-      console.warn('Import restore failed', restoreError)
-    }
-    saveError.value = '导入失败，已尽量恢复原有数据。'
-  }
-}
-
-function resolveAvailableFoods() {
-  const available = getAvailableFoods(foodPrefs.value)
-  return available.length ? available : null
-}
-
-function foodsUsedByDay(day) {
-  return (day?.meals || []).flatMap((meal) => mealFoods(meal))
-}
-
-function mergeFoodsById(...groups) {
-  const byId = new Map()
-  for (const group of groups) {
-    for (const food of group || []) {
-      const id = food?.id || (food?.name ? `food-${food.name}` : null)
-      if (!id || byId.has(id)) continue
-      byId.set(id, { ...food, id })
-    }
-  }
-  return [...byId.values()]
-}
-
-function dayFoodPoolFor(day) {
-  return mergeFoodsById(editorAvailableFoods.value, foodsUsedByDay(day))
-}
-
-function handleWeightLogsSave(updatedLogs) {
-  weightLogs.value = updatedLogs
-  showToast('已保存体重记录')
-}
-
-function handleViewCheckin() {
-  setActiveTab('checkin')
-}
-
-function handleCheckinSave(updated) {
-  checkins.value = updated
-  showToast('已保存打卡')
-}
-
-async function handleFoodsSave(updatedPrefs, options = {}) {
-  foodPrefs.value = await saveFoodPreferences(updatedPrefs)
-
-  if (foodSetupMode.value) {
-    plan.value = generateMealPlan(params.value, schedule.value, resolveAvailableFoods(), currentEatingWindow())
-    const recFields = {
-      dietMethod: params.value?.dietMethod ?? null,
-      deficitPercent: params.value?.deficitPercent ?? null,
-      targetCalories: params.value?.targetCalories ?? null,
-      macros: params.value?.macroTargets ?? null,
-      eatingWindow: currentEatingWindow(),
-      recommendationReason: params.value?.recommendationReason ?? null,
-    }
-    setPlanMeta(plan.value, recFields)
-    savePlan()
-    foodSetupMode.value = false
-    activeTab.value = 'plan'
-    view.value = 'plan'
-    return
-  }
-
-  if (options.refresh && plan.value.length) {
-    handleRefreshRecipe()
-  } else {
-    showToast('已保存食材')
-  }
-  view.value = plan.value.length ? 'plan' : 'input'
-  activeTab.value = plan.value.length ? 'foods' : 'plan'
-}
-
-function handleFoodsClose() {
-  if (foodSetupMode.value) {
-    foodSetupMode.value = false
-    view.value = 'confirm'
-  } else {
-    view.value = plan.value.length ? 'plan' : 'input'
-  }
+  const cleared = await actions.handleClearData()
+  if (!cleared) return
+  nav.clearPageStack()
+  wizard.view.value = 'input'
 }
 
 function setActiveTab(tab) {
+  if (!tabs.some((item) => item.value === tab)) return
   activeTab.value = tab
+}
+
+function handleSubPageSave(payload, options) {
+  nav.handleSubPageSave(payload, options, actions)
+}
+
+function handleSubPageDone(payload) {
+  nav.handleSubPageDone(payload, actions)
 }
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'has-tabs': isAppShell }">
+  <main
+    class="app-shell"
+    :class="{ 'has-tabs': isAppShell && !hasSubPage, 'has-top-bar': hasSubPage }"
+  >
     <div v-if="toastMsg" class="toast-overlay">{{ toastMsg }}</div>
-    <header v-if="view" class="app-header">
-      <div>
-        <span class="eyebrow">轻盈餐盘</span>
-        <h1>减脂餐计划</h1>
-      </div>
-      <div v-if="headerPill" class="progress-pill">{{ headerPill }}</div>
-    </header>
 
-    <div v-if="!view" class="loading-shell">
-      <div class="loading-dot"></div>
-    </div>
+    <template v-if="isAppShell">
+      <AppTopBar v-if="hasSubPage" :title="activePageTitle" @back="nav.handleBack" />
 
-    <template v-else-if="isAppShell">
-      <section class="app-content tab-content">
+      <section class="app-content shell-content" :class="{ 'sub-page-content': hasSubPage }">
         <div v-if="saveError" class="save-error-banner">{{ saveError }}</div>
-        <DayFoodEditor
-          v-if="activeTab === 'plan' && editingDayFood !== null && dayFoodEditorDay"
-          key="day-food-editor"
-          :day="dayFoodEditorDay"
-          :day-index="editingDayFood"
-          :available-foods="dayFoodEditorFoods"
-          @save="handleSaveDayFood"
-          @cancel="handleCancelDayFoodEdit"
-        />
-        <MealEditor
-          v-else-if="activeTab === 'plan' && editingMeal && editorMeal"
-          key="meal-editor"
-          :meal="editorMeal"
-          :day-index="editingMeal.dayIndex"
-          :meal-index="editingMeal.mealIndex"
-          :meal-target-calories="editorMealTargetCalories"
-          :available-foods="editorAvailableFoods"
-          @save-meal="handleSaveMeal"
-          @cancel-edit="handleCancelMealEdit"
-        />
-        <PlanCalendar
-          v-else-if="activeTab === 'plan'"
-          key="plan-tab"
-          :plan="plan"
-          :start-date="planMeta?.startDate"
-          :plan-meta="planMeta"
-          :eating-window="planMeta?.eatingWindow || schedule?.eatingWindow || params?.eatingWindow"
-          :today-checked="todayChecked"
-          @refresh-recipe="handleRefreshRecipe"
-          @refresh-day="handleRefreshDay"
-          @edit-day-food="handleEditDayFood"
-          @view-checkin="handleViewCheckin"
-          @edit-meal="handleEditMeal"
-          @lock-meal="handleLockMeal"
-          @unlock-meal="handleUnlockMeal"
-          @replace-meal="handleReplaceMeal"
-        />
-        <FoodPreferences
-          v-else-if="activeTab === 'foods'"
-          key="foods-tab"
-          :food-preferences="foodPrefs || defaultFoodPreferences"
-          mode="manage"
-          :show-close="false"
-          @save="handleFoodsSave"
-        />
-        <WeightProgress
-          v-else-if="activeTab === 'progress'"
-          key="progress-tab"
-          :weight-logs="weightLogs"
-          :profile="params"
-          :checkins="checkins"
-          :plan-days="Number(params?.days || planMeta?.days || plan.length || 7)"
-          :start-date="planMeta?.startDate || null"
-          :show-close="false"
-          @save="handleWeightLogsSave"
-        />
-        <CheckinProgress
-          v-else-if="activeTab === 'checkin'"
-          key="checkin-tab"
-          :checkins="checkins"
-          :show-close="false"
-          @save="handleCheckinSave"
-        />
-        <ProfileView
-          v-else-if="activeTab === 'profile'"
-          key="profile-tab"
-          :profile="params"
-          :plan-meta="planMeta"
-          @edit-profile="handleEditProfile"
+        <component
+          :is="activePageComponent"
+          v-if="hasSubPage"
+          v-bind="activePageProps"
+          @save-meal="actions.handleSaveMeal"
+          @cancel-edit="actions.handleCancelMealEdit"
+          @save="handleSubPageSave"
+          @done="handleSubPageDone"
+          @close="nav.handleSubPageCancel"
+          @cancel="nav.handleSubPageCancel"
+          @submit="actions.handleProfileEditSubmit"
+          @edit-profile="nav.pushPage('profileEdit')"
           @clear-data="handleClearData"
-          @import-data="handleImportData"
+          @import-data="actions.handleImportData"
+          @delete-weight-log="actions.handleDeleteWeightLog"
+          @delete-checkin="actions.handleDeleteCheckin"
+          @export-data="actions.handleExportData"
+        />
+        <component
+          :is="activeTabComponent"
+          v-else
+          :key="dataVersion"
+          v-bind="activeTabProps"
+          @edit-meal="actions.handleEditMeal"
+          @edit-day-food="actions.handleEditDayFood"
+          @optimize-day="actions.handleTodayOptimize"
+          @view-full-plan="actions.handleViewTodayPlan"
+          @record-weight="nav.pushPage('weightEntry')"
+          @checkin-today="nav.pushPage('checkinForm')"
+          @refresh-recipe="actions.handleRefreshRecipe"
+          @refresh-day="actions.handleRefreshDay"
+          @lock-meal="actions.handleLockMeal"
+          @unlock-meal="actions.handleUnlockMeal"
+          @replace-meal="actions.handleReplaceMeal"
+          @view-checkin="nav.pushPage('checkinForm')"
+          @save="handleFoodsSave"
+          @weight-logs-save="actions.handleWeightLogsTabSave"
+          @checkin-save="actions.handleCheckinTabSave"
+          @custom-food="nav.pushPage('customFood')"
+          @profile-edit="nav.pushPage('profileEdit')"
+          @lifestyle-edit="nav.pushPage('lifestyleEdit')"
+          @plan-settings="nav.pushPage('planSettings')"
+          @data-backup="nav.pushPage('dataBackup')"
+          @clear-data="handleClearData"
+          @import-data="actions.handleImportData"
+          @delete-weight-log="actions.handleDeleteWeightLog"
+          @delete-checkin="actions.handleDeleteCheckin"
+          @export-data="actions.handleExportData"
+          @import-data-prompt="actions.handleImportDataPrompt"
+          @view-plan="actions.handleViewTodayPlan"
         />
       </section>
 
-      <nav class="bottom-tab-bar" aria-label="主导航">
-        <button
-          v-for="tab in tabs"
-          :key="tab.value"
-          type="button"
-          class="tab-button"
-          :class="{ active: activeTab === tab.value }"
-          @click="setActiveTab(tab.value)"
-        >
-          <span aria-hidden="true">{{ tab.icon }}</span>
-          <strong>{{ tab.label }}</strong>
-        </button>
-      </nav>
+      <BottomTabBar
+        v-if="!hasSubPage"
+        :tabs="tabs"
+        :active-tab="activeTab"
+        @change="setActiveTab"
+      />
     </template>
 
     <div v-else class="app-content wizard-content">
+      <header class="app-header">
+        <div>
+          <span class="eyebrow">轻盈餐盘</span>
+          <h1>减脂餐计划</h1>
+        </div>
+      </header>
       <Transition name="slide-fade" mode="out-in">
         <InputForm
-          v-if="view === 'input'"
+          v-if="!view || view === 'input'"
           key="input"
           :initial-data="params"
-          :edit-mode="editMode"
-          @cancel="handleCancelEdit"
-          @submit="handleInputSubmit"
+          @submit="wizard.handleInputSubmit"
         />
         <ScheduleConfirm
           v-else-if="view === 'confirm'"
           key="confirm"
           :params="params"
           :initial-schedule="schedule"
-          @back="handleConfirmBack"
-          @confirm="handleConfirm"
+          @back="wizard.handleConfirmBack"
+          @confirm="wizard.handleConfirm"
         />
         <RecommendView
           v-else-if="view === 'recommend' && recommendation"
@@ -955,20 +278,20 @@ function setActiveTab(tab) {
           :deficit-suggestion="recommendation.deficitSuggestion"
           :schedule-suggestion="recommendation.scheduleSuggestion"
           :macro-targets="recommendation.macroTargets"
-          @back="handleRecommendBack"
-          @accept="handleRecommendAccept"
+          @back="wizard.handleRecommendBack"
+          @accept="wizard.handleRecommendAccept"
         />
         <FoodPreferences
           v-else-if="view === 'foods'"
           key="foods"
           :food-preferences="foodPrefs || defaultFoodPreferences"
-          :mode="foodSetupMode ? 'setup' : 'manage'"
+          mode="setup"
           @save="handleFoodsSave"
-          @close="handleFoodsClose"
+          @close="wizard.handleFoodsClose"
         />
         <section v-else key="empty-plan" class="empty-state-panel">
           <strong>还没有餐单</strong>
-          <p>完成资料、推荐、餐次和食材设置后，将生成第 5 步餐单。</p>
+          <p>完成资料、推荐、餐次和食材设置后，将生成餐单。</p>
         </section>
       </Transition>
     </div>
@@ -982,47 +305,67 @@ function setActiveTab(tab) {
   justify-content: center;
   min-height: 60vh;
 }
+
 .loading-dot {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 50%;
-  background: var(--green, #5ba66f);
+  background: var(--color-primary);
   animation: pulse 1s ease-in-out infinite;
 }
+
 @keyframes pulse {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1); }
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
+
 .save-error-banner {
   padding: 0.75rem 1rem;
-  border-radius: 0.85rem;
-  background: #fff0d8;
-  color: #c0392b;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-danger);
   font-weight: 700;
   font-size: 0.85rem;
   text-align: center;
 }
+
 .toast-overlay {
   position: fixed;
-  bottom: 3rem;
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-md));
   left: 50%;
-  transform: translateX(-50%);
-  background: #2d3436;
-  color: #fff;
-  padding: 0.75rem 1.5rem;
-  border-radius: 2rem;
-  font-size: 0.9rem;
-  font-weight: 600;
   z-index: 999;
-  animation: toast-in 0.25s ease;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-pill);
+  background: rgba(28, 28, 30, 0.88);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 0.85rem;
+  font-weight: 600;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transform: translateX(-50%);
+  animation: toast-in 0.2s ease;
 }
+
 .has-tabs .toast-overlay {
-  bottom: calc(5.6rem + env(safe-area-inset-bottom));
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + var(--spacing-md));
 }
+
 @keyframes toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(1rem); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 </style>
