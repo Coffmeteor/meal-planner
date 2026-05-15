@@ -1,7 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { formatTime } from '../utils/helpers.js'
-import { normalizeEditedMeal } from '../utils/mealDisplay.js'
+import { normalizeEditedMeal } from '../domain/meal-plan/mealDisplay.js'
+import {
+  CALORIE_DEVIATION_MINOR,
+  CALORIE_DEVIATION_MODERATE,
+} from '../domain/meal-plan/constants.js'
 
 const props = defineProps({
   meal: {
@@ -38,7 +42,16 @@ const categoryLabels = {
   condiment: '调味',
   snack: '零食',
 }
-const categoryOrder = ['protein', 'carb', 'vegetable', 'fruit', 'dairy', 'fat', 'condiment', 'snack']
+const categoryOrder = [
+  'protein',
+  'carb',
+  'vegetable',
+  'fruit',
+  'dairy',
+  'fat',
+  'condiment',
+  'snack',
+]
 
 const localFoods = ref([])
 const pickerMode = ref(null)
@@ -89,13 +102,13 @@ const calorieDeviation = computed(() =>
 )
 const deviationText = computed(() => {
   const abs = Math.abs(calorieDeviation.value)
-  if (abs <= 50) return '接近目标'
-  if (abs >= 100) return '偏离较多'
+  if (abs <= CALORIE_DEVIATION_MINOR) return '接近目标'
+  if (abs >= CALORIE_DEVIATION_MODERATE) return '偏离较多'
   return '稍有偏差'
 })
 const deviationClass = computed(() => ({
-  close: Math.abs(calorieDeviation.value) <= 50,
-  far: Math.abs(calorieDeviation.value) >= 100,
+  close: Math.abs(calorieDeviation.value) <= CALORIE_DEVIATION_MINOR,
+  far: Math.abs(calorieDeviation.value) >= CALORIE_DEVIATION_MODERATE,
 }))
 
 watch(
@@ -255,9 +268,8 @@ function pickFood(food) {
     const oldFood = localFoods.value[replaceIndex.value]
     const targetCalories = Number(oldFood?.calories || 0)
     const caloriesPer100g = Number(food.per100g?.calories || 0)
-    const rawPortion = caloriesPer100g > 0
-      ? (targetCalories / caloriesPer100g) * 100
-      : defaultPortionFor(food)
+    const rawPortion =
+      caloriesPer100g > 0 ? (targetCalories / caloriesPer100g) * 100 : defaultPortionFor(food)
     const portion = Math.max(1, roundPortionForFood(food, rawPortion))
     localFoods.value[replaceIndex.value] = scaleFood(food, portion)
   } else {
@@ -305,11 +317,7 @@ function handleSave() {
     </div>
 
     <div class="meal-editor-foods">
-      <div
-        v-for="(food, index) in localFoods"
-        :key="`${food.name}-${index}`"
-        class="food-edit-row"
-      >
+      <div v-for="(food, index) in localFoods" :key="`${food.name}-${index}`" class="food-edit-row">
         <div class="food-edit-main">
           <strong>{{ food.name }}</strong>
           <span>{{ categoryLabels[food.category] || food.category }}</span>
@@ -324,18 +332,20 @@ function handleSave() {
             @input="updatePortion(index, $event.target.value)"
             @focus="focusPortion"
             @blur="blurPortion(index, $event.target.value)"
-          >
+          />
           <span>g</span>
         </label>
         <em>{{ Math.round(food.calories) }} kcal</em>
         <div class="food-row-actions">
-          <button type="button" class="meal-action-btn" @click="openReplacePicker(index)">替换</button>
-          <button type="button" class="meal-action-btn danger" @click="removeFood(index)">删除</button>
+          <button type="button" class="meal-action-btn" @click="openReplacePicker(index)">
+            替换
+          </button>
+          <button type="button" class="meal-action-btn danger" @click="removeFood(index)">
+            删除
+          </button>
         </div>
       </div>
-      <button type="button" class="ghost-action full-width" @click="openAddPicker">
-        添加食材
-      </button>
+      <button type="button" class="ghost-action full-width" @click="openAddPicker">添加食材</button>
     </div>
 
     <div class="meal-editor-actions">
@@ -352,11 +362,7 @@ function handleSave() {
         <div v-if="groupedFoods.length" class="food-picker-groups">
           <section v-for="group in groupedFoods" :key="group.category" class="food-picker-group">
             <h3>{{ group.label }}</h3>
-            <div
-              v-for="food in group.foods"
-              :key="food.id || food.name"
-              class="food-picker-row"
-            >
+            <div v-for="food in group.foods" :key="food.id || food.name" class="food-picker-row">
               <div>
                 <strong>{{ food.name }}</strong>
                 <span>{{ Math.round(food.per100g.calories) }} kcal / 100g</span>

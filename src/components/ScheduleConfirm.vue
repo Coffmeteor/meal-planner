@@ -1,15 +1,15 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { calculateDailyTargets } from '../utils/calc.js'
+import { calculateDailyTargets } from '../domain/nutrition/index.js'
 import { formatCalories, formatMacro } from '../utils/helpers.js'
-import { generateScheduleFromProfile } from '../utils/planGenerator.js'
+import { generateScheduleFromProfile } from '../domain/meal-plan/index.js'
 import {
   addMinutesToTime,
   autoDistributeMeals,
   normalizeDietMethod,
   normalizeEatingWindow,
   validateScheduleTimes,
-} from '../utils/scheduleUtils.js'
+} from '../domain/meal-plan/scheduleUtils.js'
 
 const props = defineProps({
   params: {
@@ -53,14 +53,17 @@ const windowSplitMap = {
   4: [0.38, 0.1, 0.37, 0.15],
 }
 const dietMethod = computed(() => normalizeDietMethod(props.params?.dietMethod || 'threeMeals'))
-const isWindowMethod = computed(() => eatingWindow.value?.type && eatingWindow.value.type !== 'none')
+const isWindowMethod = computed(
+  () => eatingWindow.value?.type && eatingWindow.value.type !== 'none',
+)
 const canEditMealCount = computed(() => isWindowMethod.value)
 const minMealCount = computed(() => (isWindowMethod.value ? 2 : mealCount.value))
 const maxMealCount = computed(() => (isWindowMethod.value ? 4 : mealCount.value))
 const timelineItems = computed(() =>
   (currentSchedule.value?.times || []).map((time, index) => ({
     time,
-    name: currentSchedule.value?.mealNames?.[index] || mealNameMap[mealCount.value]?.[index] || '轻食',
+    name:
+      currentSchedule.value?.mealNames?.[index] || mealNameMap[mealCount.value]?.[index] || '轻食',
   })),
 )
 const validation = computed(() =>
@@ -133,13 +136,16 @@ function setMealCount(nextCount) {
     { length: count },
     (_, index) => currentSchedule.value?.times?.[index] || eatingWindow.value.start,
   )
-  currentSchedule.value = autoDistributeMeals({
-    mealCount: count,
-    mealNames: mealNamesFor(count),
-    times,
-    split: splitFor(count),
-    eatingWindow: eatingWindow.value,
-  }, eatingWindow.value)
+  currentSchedule.value = autoDistributeMeals(
+    {
+      mealCount: count,
+      mealNames: mealNamesFor(count),
+      times,
+      split: splitFor(count),
+      eatingWindow: eatingWindow.value,
+    },
+    eatingWindow.value,
+  )
 }
 
 function updateMealTime(index, time) {
@@ -205,9 +211,7 @@ function confirmSchedule() {
 <template>
   <section class="panel form-stack">
     <div class="top-action-row">
-      <button type="button" class="ghost-action compact-action" @click="emitBack">
-        返回推荐
-      </button>
+      <button type="button" class="ghost-action compact-action" @click="emitBack">返回推荐</button>
     </div>
 
     <div class="section-title">
@@ -284,7 +288,11 @@ function confirmSchedule() {
     </div>
 
     <div class="timeline">
-      <div v-for="(item, index) in timelineItems" :key="`${item.name}-${index}`" class="timeline-item editable">
+      <div
+        v-for="(item, index) in timelineItems"
+        :key="`${item.name}-${index}`"
+        class="timeline-item editable"
+      >
         <input
           :value="item.time"
           class="time-input meal-time-input"

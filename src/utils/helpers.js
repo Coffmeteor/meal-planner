@@ -16,6 +16,20 @@ export function formatTime(time) {
   return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
 }
 
+export function formatDateYmd(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function parseYmd(value) {
+  const [year, month, day] = String(value || '')
+    .split('-')
+    .map(Number)
+  return new Date(year || 0, (month || 1) - 1, day || 1)
+}
+
 export function formatDate(dateValue) {
   const date = parseDate(dateValue)
   return `${date.getMonth() + 1}月${date.getDate()}日`
