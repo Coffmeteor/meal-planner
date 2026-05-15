@@ -60,9 +60,9 @@ const iconPaths = {
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  min-height: 49px;
-  padding: 0;
-  padding-bottom: env(safe-area-inset-bottom);
+  min-height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  padding: 0 max(0.25rem, env(safe-area-inset-left)) env(safe-area-inset-bottom)
+    max(0.25rem, env(safe-area-inset-right));
   border-top: 0.5px solid rgba(60, 60, 67, 0.29);
   background: rgba(249, 249, 249, 0.96);
 }
@@ -74,11 +74,11 @@ const iconPaths = {
   justify-content: center;
   gap: 1px;
   min-width: 0;
-  min-height: 49px;
+  min-height: var(--bottom-nav-h);
+  padding: 0.25rem 0.15rem;
   border-radius: 0;
   color: #8e8e93;
   background: transparent;
-  -webkit-tap-highlight-color: transparent;
   transition: color 0.1s ease;
 }
 
@@ -94,10 +94,14 @@ const iconPaths = {
 
 .tab-label {
   display: block;
-  font-size: 0.6rem;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(0.58rem, 2.4vw, 0.68rem);
   font-weight: 500;
   letter-spacing: 0;
   line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab-button.active {

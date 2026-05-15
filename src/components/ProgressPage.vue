@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { analyzeWeightTrend, generateAdvice, getTargetCurve } from '../utils/progress.js'
+import { analyzeWeightTrend, generateAdvice, getTargetCurve } from '../domain/body-records/index.js'
 import { analyzeRecentCheckins, generateCheckinAdvice } from '../domain/checkins/index.js'
 
 const props = defineProps({
@@ -269,6 +269,8 @@ function scoreText(value) {
 .progress-dashboard-card {
   display: grid;
   gap: var(--spacing-md);
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding: var(--spacing-lg);
   border-radius: var(--radius-card);
@@ -359,12 +361,12 @@ function scoreText(value) {
 
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr));
   gap: 0.55rem;
 }
 
 .stat-row-2col {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr));
 }
 
 .stat-cell {
@@ -412,13 +414,17 @@ function scoreText(value) {
   width: 100%;
 }
 
-@media (max-width: 24rem) {
+@media (max-width: 27rem) {
+  .progress-card-head {
+    flex-wrap: wrap;
+  }
+
   .stat-row {
     grid-template-columns: 1fr;
   }
 
   .stat-row-2col {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
   }
 }
 </style>

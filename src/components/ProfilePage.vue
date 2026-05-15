@@ -369,5 +369,13 @@ const emit = defineEmits([
   color: var(--color-muted);
   font-size: 0.72rem;
   text-align: center;
+  overflow-wrap: anywhere;
+  padding: 0 var(--spacing-sm);
+}
+
+@media (max-width: 27rem) {
+  .settings-footer {
+    margin-top: var(--spacing-md);
+  }
 }
 </style>
