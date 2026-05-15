@@ -1247,6 +1247,10 @@ button:focus-visible {
 .recommend-stack {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   gap: 1rem;
   padding-bottom: 5.5rem;
 }
@@ -1267,6 +1271,9 @@ button:focus-visible {
 
 .recommend-card {
   display: grid;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   gap: 0.85rem;
   padding: var(--spacing-lg);
 }
@@ -1335,6 +1342,7 @@ button:focus-visible {
 
 .option-list button,
 .deficit-options button {
+  min-width: 0;
   min-height: 2.65rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -1402,6 +1410,8 @@ button:focus-visible {
 .macro-list strong,
 .macro-list small {
   display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .macro-list strong {
@@ -1415,6 +1425,30 @@ button:focus-visible {
   bottom: 1rem;
   left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
   z-index: 20;
+}
+
+@media (max-width: 27rem) {
+  .recommend-card {
+    padding: 1rem;
+  }
+
+  .recommend-card .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deficit-options {
+    gap: 0.4rem;
+  }
+
+  .deficit-options button {
+    min-height: 2.35rem;
+    padding: 0 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .macro-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stepper {

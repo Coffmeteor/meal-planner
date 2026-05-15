@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   analyzeWeightTrend,
+  buildChartDataForMetric,
   buildWeightChartData,
   generateAdvice,
   getTargetCurve,
@@ -50,6 +51,15 @@ const form = reactive({
 })
 const error = ref('')
 const saving = ref(false)
+const selectedMetric = ref('weight')
+
+const metricOptions = [
+  { value: 'weight', label: '体重', unit: 'kg' },
+  { value: 'waist', label: '腰围', unit: 'cm' },
+  { value: 'hip', label: '臀围', unit: 'cm' },
+  { value: 'chest', label: '胸围', unit: 'cm' },
+  { value: 'bodyFat', label: '体脂率', unit: '%' },
+]
 
 const sortedLogs = computed(() =>
   [...props.weightLogs].sort((a, b) => b.date.localeCompare(a.date)),
@@ -64,6 +74,15 @@ const targetCurve = computed(() => getTargetCurve(props.profile, props.planDays)
 const chartData = computed(() =>
   buildWeightChartData(props.weightLogs, props.profile, props.planDays, props.startDate),
 )
+const metricChartData = computed(() =>
+  selectedMetric.value === 'weight'
+    ? chartData.value
+    : buildChartDataForMetric(props.weightLogs, selectedMetric.value),
+)
+const selectedMetricOption = computed(
+  () => metricOptions.find((option) => option.value === selectedMetric.value) || metricOptions[0],
+)
+const isWeightMetric = computed(() => selectedMetric.value === 'weight')
 const currentWeight = computed(() => {
   const weight = Number(latestLog.value?.weight)
   return Number.isFinite(weight) && weight > 0 ? weight : null
@@ -98,7 +117,9 @@ const trendText = computed(() => {
   return labels[trendInfo.value.trend] || '待积累'
 })
 const actualPolyline = computed(() =>
-  chartData.value.actualPoints.map((point) => `${toX(point.date)},${toY(point.weight)}`).join(' '),
+  metricChartData.value.actualPoints
+    .map((point) => `${toX(point.date)},${toY(pointValue(point))}`)
+    .join(' '),
 )
 const maPolyline = computed(() =>
   chartData.value.movingAvgPoints
@@ -109,6 +130,13 @@ const targetPolyline = computed(() =>
   chartData.value.targetPoints.map((point) => `${toX(point.date)},${toY(point.weight)}`).join(' '),
 )
 const gridLines = computed(() => [0, 1, 2].map((index) => 140 - (index / 2) * 120))
+const emptyChartText = computed(() => {
+  if (isWeightMetric.value) {
+    return hasWeightLogs.value ? '继续记录几天后生成趋势图' : '添加第一条体重记录后，将开始生成趋势'
+  }
+
+  return `继续记录几次后生成${selectedMetricOption.value.label}趋势`
+})
 
 function todayYmd() {
   const date = new Date()
@@ -134,7 +162,7 @@ function toTimestamp(dateStr) {
 }
 
 function toX(dateStr) {
-  const dates = chartData.value.dates
+  const dates = metricChartData.value.dates
   if (!dates.length) return 0
 
   const first = toTimestamp(dates[0])
@@ -147,9 +175,13 @@ function toX(dateStr) {
 }
 
 function toY(weight) {
-  const { minY, maxY } = chartData.value
+  const { minY, maxY } = metricChartData.value
   const range = maxY - minY || 1
   return 140 - ((weight - minY) / range) * 120
+}
+
+function pointValue(point) {
+  return Number(point.value ?? point.weight)
 }
 
 function setScore(field, value) {
@@ -288,9 +320,20 @@ async function handleDelete(log) {
       <p>{{ checkinAdvice }}</p>
     </div>
 
-    <div v-if="chartData.actualPoints.length >= 2" class="chart-panel">
+    <div v-if="metricChartData.actualPoints.length >= 2" class="chart-panel">
       <div class="chart-head">
-        <span>体重趋势</span>
+        <span>{{ selectedMetricOption.label }}趋势</span>
+        <div class="metric-selector" aria-label="趋势指标">
+          <button
+            v-for="option in metricOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: selectedMetric === option.value }"
+            @click="selectedMetric = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
       </div>
       <svg class="weight-chart" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet">
         <line
@@ -305,7 +348,7 @@ async function handleDelete(log) {
           stroke-width="1"
         />
         <polyline
-          v-if="chartData.targetPoints.length"
+          v-if="isWeightMetric && chartData.targetPoints.length"
           :points="targetPolyline"
           fill="none"
           stroke="var(--color-muted)"
@@ -313,7 +356,7 @@ async function handleDelete(log) {
           stroke-dasharray="5,4"
         />
         <polyline
-          v-if="chartData.movingAvgPoints.length"
+          v-if="isWeightMetric && chartData.movingAvgPoints.length"
           :points="maPolyline"
           fill="none"
           stroke="var(--color-primary)"
@@ -326,28 +369,43 @@ async function handleDelete(log) {
           stroke-width="2"
         />
         <circle
-          v-for="(point, index) in chartData.actualPoints"
+          v-for="(point, index) in metricChartData.actualPoints"
           :key="index"
           :cx="toX(point.date)"
-          :cy="toY(point.weight)"
+          :cy="toY(pointValue(point))"
           r="3"
           fill="var(--color-primary-deep)"
         />
       </svg>
       <div class="chart-legend">
-        <span class="legend-item"><i class="dot actual"></i>实际体重</span>
-        <span v-if="chartData.movingAvgPoints.length" class="legend-item">
+        <span class="legend-item"
+          ><i class="dot actual"></i>实际{{ selectedMetricOption.label
+          }}{{ selectedMetricOption.unit ? ` (${selectedMetricOption.unit})` : '' }}</span
+        >
+        <span v-if="isWeightMetric && chartData.movingAvgPoints.length" class="legend-item">
           <i class="line avg"></i>7 日均重
         </span>
-        <span v-if="chartData.targetPoints.length" class="legend-item">
+        <span v-if="isWeightMetric && chartData.targetPoints.length" class="legend-item">
           <i class="line target"></i>目标曲线
         </span>
       </div>
     </div>
     <div v-else class="chart-panel chart-empty">
-      <p>
-        {{ hasWeightLogs ? '继续记录几天后生成趋势图' : '添加第一条体重记录后，将开始生成趋势' }}
-      </p>
+      <div class="chart-head">
+        <span>{{ selectedMetricOption.label }}趋势</span>
+        <div class="metric-selector" aria-label="趋势指标">
+          <button
+            v-for="option in metricOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: selectedMetric === option.value }"
+            @click="selectedMetric = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+      <p>{{ emptyChartText }}</p>
     </div>
 
     <form class="log-form" @submit.prevent="handleSave">
@@ -622,12 +680,41 @@ async function handleDelete(log) {
 }
 
 .chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
 .chart-head span {
   color: var(--color-muted);
   font-size: 0.78rem;
+}
+
+.metric-selector {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.metric-selector button {
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: var(--color-card);
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.metric-selector button.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-deep);
 }
 
 .weight-chart {
@@ -859,6 +946,15 @@ button:disabled {
 }
 
 @media (max-width: 520px) {
+  .chart-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .metric-selector {
+    justify-content: flex-start;
+  }
+
   .metric-grid,
   .checkin-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

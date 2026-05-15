@@ -78,15 +78,6 @@ const eatingWindowLabel = computed(() => {
 })
 const summaryMeta = computed(() => {
   if (!props.planMeta) return null
-  const hasRecommendationMeta = Boolean(
-    props.planMeta.dietMethod ||
-    props.planMeta.dietMethodLabel ||
-    props.planMeta.targetCalories ||
-    props.planMeta.deficitPercent ||
-    props.planMeta.macros ||
-    props.planMeta.eatingWindow,
-  )
-  if (!hasRecommendationMeta) return null
 
   return {
     ...props.planMeta,

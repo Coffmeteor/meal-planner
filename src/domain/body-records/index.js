@@ -209,6 +209,38 @@ export function buildWeightChartData(weightLogs, profile, planDays, startDate) {
   return { actualPoints, movingAvgPoints, targetPoints, minY, maxY, dates }
 }
 
+/**
+ * Build simplified SVG chart data for a single body record metric.
+ */
+export function buildChartDataForMetric(logs, metric) {
+  const valid = logs.filter((log) => log[metric] != null && Number(log[metric]) > 0)
+  if (valid.length < 2) {
+    return {
+      actualPoints: [],
+      movingAvgPoints: [],
+      targetPoints: [],
+      minY: 0,
+      maxY: 0,
+      dates: [],
+    }
+  }
+
+  const sorted = [...valid].sort((a, b) => a.date.localeCompare(b.date))
+  const actualPoints = sorted.map((log) => ({
+    date: log.date,
+    value: Number(log[metric]),
+  }))
+  const values = actualPoints.map((point) => point.value)
+  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values)
+  const padding = Math.max((maxValue - minValue) * 0.2, metric === 'bodyFat' ? 0.5 : 1)
+  const minY = Math.max(0, Math.floor((minValue - padding) * 10) / 10)
+  const maxY = Math.max(Math.ceil((maxValue + padding) * 10) / 10, minY + 1)
+  const dates = [actualPoints[0].date, actualPoints[actualPoints.length - 1].date]
+
+  return { actualPoints, movingAvgPoints: [], targetPoints: [], minY, maxY, dates }
+}
+
 // Shared date helpers (will eventually migrate to shared/utils/)
 function parseYmd(value) {
   if (!value) return null
