@@ -353,3 +353,11 @@ function submitForm() {
     <button v-else class="primary-action" type="submit">生成推荐方案</button>
   </form>
 </template>
+
+<style scoped>
+input,
+select,
+textarea {
+  font-size: max(1rem, 16px);
+}
+</style>

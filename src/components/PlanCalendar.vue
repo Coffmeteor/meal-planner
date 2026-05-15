@@ -354,7 +354,7 @@ function handleEditDayFood() {
 
 .plan-top-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   gap: 0.65rem;
   max-width: 100%;
   min-width: 0;
@@ -382,9 +382,9 @@ function handleEditDayFood() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
   gap: 0.75rem;
   font-size: 0.85rem;
   line-height: 1.35;
@@ -398,7 +398,7 @@ function handleEditDayFood() {
 }
 
 .summary-row strong {
-  flex: 0 1 auto;
+  flex: 1 1 8rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -447,6 +447,15 @@ function handleEditDayFood() {
   justify-content: flex-end;
   min-width: 0;
   gap: 0.45rem;
+}
+
+.day-scroll {
+  min-width: 0;
+}
+
+.day-card {
+  flex-basis: clamp(6.25rem, 31vw, 7.2rem);
+  min-width: 0;
 }
 
 .day-deviation-card {
@@ -556,9 +565,33 @@ function handleEditDayFood() {
   cursor: not-allowed;
 }
 
-@media (max-width: 360px) {
+@media (max-width: 27rem) {
   .plan-top-actions {
     grid-template-columns: 1fr;
+  }
+
+  .plan-summary {
+    padding: var(--spacing-md);
+  }
+
+  .summary-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .summary-row strong {
+    flex-basis: auto;
+    text-align: left;
+  }
+
+  .day-scroll {
+    gap: var(--spacing-sm);
+  }
+
+  .day-card {
+    flex-basis: min(42vw, 7rem);
+    padding: 0.65rem 0.7rem;
   }
 
   .day-title-row {

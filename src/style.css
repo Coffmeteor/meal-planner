@@ -12,18 +12,20 @@
   --color-muted: #8e8e93;
   --color-border: #e5e7eb;
   --color-separator: rgba(60, 60, 67, 0.12);
-  --radius-card: 12px;
+  --radius-card: clamp(0.9rem, 3vw, 1.2rem);
   --radius-sm: 10px;
   --radius-pill: 9999px;
   --shadow-card: 0 0.5px 1px rgba(0, 0, 0, 0.04);
   --shadow-glass: 0 -0.5px 4px rgba(0, 0, 0, 0.04);
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 14px;
-  --spacing-lg: 18px;
-  --spacing-xl: 24px;
+  --spacing-xs: clamp(0.2rem, 0.8vw, 0.35rem);
+  --spacing-sm: clamp(0.35rem, 1.4vw, 0.55rem);
+  --spacing-md: clamp(0.65rem, 2.4vw, 0.9rem);
+  --spacing-lg: clamp(0.85rem, 3.2vw, 1.15rem);
+  --spacing-xl: clamp(1.1rem, 4vw, 1.5rem);
+  --page-max: 30rem;
+  --tap-target: 2.75rem;
   --top-bar-h: 44px;
-  --bottom-nav-h: 49px;
+  --bottom-nav-h: clamp(3.5rem, 10vw, 4.25rem);
   --bg: var(--color-bg);
   --panel: var(--color-card);
   --panel-strong: var(--color-card);
@@ -72,8 +74,10 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+  font-size: max(1rem, 16px);
 }
 
 button {
@@ -95,7 +99,7 @@ button:disabled {
 .app-shell {
   display: flex;
   flex-direction: column;
-  width: min(100%, 30rem);
+  width: min(100%, var(--page-max));
   max-width: 100%;
   min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   margin: 0 auto;
@@ -329,7 +333,7 @@ button:disabled {
 
 .input-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -357,6 +361,7 @@ textarea {
   background: var(--color-card);
   outline: 0;
   font: inherit;
+  font-size: max(1rem, 16px);
 }
 
 input {
@@ -959,9 +964,9 @@ button:focus-visible {
 
 .day-food-actions {
   position: fixed;
-  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  right: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   bottom: calc(1rem + env(safe-area-inset-bottom));
-  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  left: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   z-index: 21;
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -1196,7 +1201,7 @@ button:focus-visible {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr));
   gap: 0.55rem;
 }
 
@@ -1382,7 +1387,7 @@ button:focus-visible {
 }
 
 .deficit-options {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.75rem), 1fr));
 }
 
 .warning-banner {
@@ -1396,7 +1401,7 @@ button:focus-visible {
 }
 
 .macro-list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
 }
 
 .macro-list div {
@@ -1421,19 +1426,23 @@ button:focus-visible {
 
 .sticky-action {
   position: fixed;
-  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
-  bottom: 1rem;
-  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  right: max(var(--spacing-md), calc((100vw - var(--page-max)) / 2 + var(--spacing-md)));
+  bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+  left: max(var(--spacing-md), calc((100vw - var(--page-max)) / 2 + var(--spacing-md)));
   z-index: 20;
 }
 
 @media (max-width: 27rem) {
+  .recommend-stack {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
   .recommend-card {
-    padding: 1rem;
+    padding: var(--spacing-md);
   }
 
   .recommend-card .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
   }
 
   .deficit-options {
@@ -1448,6 +1457,11 @@ button:focus-visible {
 
   .macro-list {
     grid-template-columns: 1fr;
+  }
+
+  .sticky-action .primary-action {
+    min-height: var(--tap-target);
+    white-space: normal;
   }
 }
 
@@ -1954,9 +1968,9 @@ button:focus-visible {
 
 .meal-editor-actions {
   position: fixed;
-  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  right: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   bottom: calc(1rem + env(safe-area-inset-bottom));
-  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  left: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   z-index: 21;
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -1979,7 +1993,7 @@ button:focus-visible {
 }
 
 .meal-picker {
-  width: min(100vw, 30rem);
+  width: min(100vw, var(--page-max));
   max-height: 78svh;
   overflow-y: auto;
   padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));

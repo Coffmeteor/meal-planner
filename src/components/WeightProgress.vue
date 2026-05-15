@@ -6,7 +6,7 @@ import {
   buildWeightChartData,
   generateAdvice,
   getTargetCurve,
-} from '../utils/progress.js'
+} from '../domain/body-records/index.js'
 import { analyzeRecentCheckins, generateCheckinAdvice } from '../domain/checkins/index.js'
 
 const props = defineProps({
@@ -594,11 +594,12 @@ async function handleDelete(log) {
 
 .summary-panel {
   padding: 1rem;
+  min-width: 0;
 }
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -697,10 +698,13 @@ async function handleDelete(log) {
   flex: 0 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
   gap: 0.35rem;
 }
 
 .metric-selector button {
+  flex: 1 1 3.6rem;
+  min-width: 0;
   min-height: 1.9rem;
   padding: 0 0.55rem;
   border: 1px solid var(--color-border);
@@ -766,11 +770,12 @@ async function handleDelete(log) {
   flex-direction: column;
   gap: 0.9rem;
   padding: 1rem;
+  min-width: 0;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -790,6 +795,7 @@ textarea {
   background: var(--color-card);
   color: var(--color-text);
   font: inherit;
+  font-size: max(1rem, 16px);
   padding: 0.7rem 0.75rem;
 }
 
@@ -833,9 +839,9 @@ textarea {
 
 .form-action-bar {
   position: fixed;
-  right: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  right: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   bottom: calc(1rem + env(safe-area-inset-bottom));
-  left: max(1rem, calc((100vw - 30rem) / 2 + 1rem));
+  left: max(1rem, calc((100vw - var(--page-max)) / 2 + 1rem));
   z-index: 21;
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -970,6 +976,28 @@ button:disabled {
 
   .delete-action {
     align-self: flex-start;
+  }
+}
+
+@media (max-width: 27rem) {
+  .summary-panel,
+  .chart-panel,
+  .log-form,
+  .recent-panel {
+    padding: var(--spacing-md);
+  }
+
+  .progress-title {
+    flex-wrap: wrap;
+  }
+
+  .metric-selector {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .form-action-bar {
+    grid-template-columns: 1fr;
   }
 }
 
